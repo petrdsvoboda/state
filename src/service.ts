@@ -3,6 +3,8 @@ import { Machine, Service, Transition, GuardMap, ActionMap } from './types'
 const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
 	arg !== null && arg !== undefined
 
+const isArray = <T>(arg: T | T[]): arg is T[] => Array.isArray(arg)
+
 export const createService = <
 	M extends Machine<S, E, G, A>,
 	C extends {},
@@ -32,20 +34,16 @@ export const sendEvent = <
 	A extends string | undefined = undefined
 >(
 	service: Service<M, C, S, E, G, A>,
-	event: E
+	event: E | ''
 ): Service<M, C, S, E, G, A> => {
 	const { machine, context, currentState } = service
 
-	let perform = machine.states[currentState].on?.[event]
+	let perform: Transition<S, G, A> | Transition<S, G, A>[] | undefined =
+		machine.states[currentState].on?.[event]
 	if (perform === undefined) perform = machine.on?.[event]
 	if (perform === undefined) return service
 
-	let performTransitions: Transition<S, G, A>[]
-	if (Array.isArray(perform)) {
-		performTransitions = perform
-	} else {
-		performTransitions = [perform]
-	}
+	const performTransitions = isArray(perform) ? perform : [perform]
 
 	// Get first transition that passes guard
 	const transition = performTransitions.reduce<Transition<S, G, A> | null>(

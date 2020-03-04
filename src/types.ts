@@ -13,7 +13,7 @@ export type TransitionMap<
 	E extends string,
 	G extends string | undefined = undefined,
 	A extends string | undefined = undefined
-> = Record<E | '', Transition<S, G, A>[]>
+> = Record<E | '', Transition<S, G, A> | Transition<S, G, A>[]>
 
 export type GuardMap<
 	G extends string | undefined,
@@ -38,11 +38,8 @@ export type Machine<
 	A extends string | undefined = undefined
 > = {
 	initial: S
-	states: Record<
-		S,
-		{ on?: Record<E | '', Transition<S, G, A> | Transition<S, G, A>[]> }
-	>
-	on?: Record<E | '', Transition<S, G, A> | Transition<S, G, A>[]>
+	states: Record<S, { on?: TransitionMap<S, E, G, A> }>
+	on?: TransitionMap<S, E, G, A>
 }
 
 export type Service<
