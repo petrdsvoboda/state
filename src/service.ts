@@ -6,8 +6,8 @@ import {
 	ActionMap
 } from './types'
 
-const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
-	arg !== null && arg !== undefined
+// const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
+// 	arg !== null && arg !== undefined
 
 const isArray = <T>(arg: T | T[]): arg is T[] => Array.isArray(arg)
 
@@ -88,21 +88,23 @@ export const sendEvent = <
 
 	// Get first transition that passes guard
 	const transition = performTransitions.reduce<Transition<S, G, A> | null>(
-		(acc, curr) =>
-			acc !== null
-				? acc
-				: !isNonNullable(curr.cond) || !isNonNullable(guards)
-				? curr
-				: guards[curr.cond](context, currentState) === true
-				? curr
-				: null,
+		(acc, curr) => {
+			if (acc !== null) {
+				return acc
+			} else if (curr.cond && guards) {
+				const guard = guards[curr.cond]
+				return guard(context, currentState) ? curr : null
+			} else {
+				return curr
+			}
+		},
 		null
 	)
 	if (transition === null) return service
 
 	// Update context using actions
 	let newContext = context
-	if (isNonNullable(transition.actions) && isNonNullable(actions)) {
+	if (transition.actions && actions) {
 		newContext = transition.actions.reduce(
 			(acc, curr) => Object.assign(acc, actions[curr](acc, currentState)),
 			context
@@ -111,11 +113,13 @@ export const sendEvent = <
 
 	// Successfull transition
 	const newState = transition.target
-	const newService = {
+	let newService = {
 		...service,
 		context: newContext,
 		currentState: newState
 	}
+	// Apply auto transitions
+	newService = sendEvent(newService, '')
 
 	return newService
 }

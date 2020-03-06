@@ -91,7 +91,14 @@ describe('createService', () => {
 })
 
 describe('sendEvent', () => {
-	type State = 'new' | 'state1' | 'state2' | 'state3' | 'done'
+	type State =
+		| 'new'
+		| 'state1'
+		| 'state2'
+		| 'state3'
+		| 'state4'
+		| 'state5'
+		| 'done'
 	type Event = 'do' | 'back' | 'complete' | 'restart'
 	type Guard = 'canDo'
 	type Action = 'set' | 'inc' | 'delete'
@@ -115,6 +122,8 @@ describe('sendEvent', () => {
 			},
 			state2: { on: { do: { target: 'state3', actions: ['inc'] } } },
 			state3: {},
+			state4: { on: { '': { target: 'state5', actions: ['set'] } } },
+			state5: { on: { '': { target: 'done', actions: ['inc'] } } },
 			done: {}
 		},
 		on: { restart: { target: 'new' } }
@@ -160,6 +169,18 @@ describe('sendEvent', () => {
 		expect(sendEvent(service, 'restart')).toEqual({
 			...service,
 			currentState: 'new'
+		} as typeof service)
+	})
+
+	test('it handles auto transition', () => {
+		const service = createService({
+			...baseService,
+			initialState: 'state4'
+		})
+		expect(sendEvent(service, '')).toEqual({
+			...service,
+			currentState: 'done',
+			context: { counter: 2 }
 		} as typeof service)
 	})
 

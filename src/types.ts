@@ -4,7 +4,7 @@ export type Transition<
 	A extends string | undefined = undefined
 > = {
 	target: S
-	cond?: G
+	cond?: NonNullable<G>
 	actions?: NonNullable<A>[]
 }
 
