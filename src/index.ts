@@ -1,1 +1,2 @@
-export { createService, sendEvent } from './service'
+export * from './service'
+export * from './types'

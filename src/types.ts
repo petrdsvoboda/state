@@ -5,7 +5,7 @@ export type Transition<
 > = {
 	target: S
 	cond?: G
-	actions?: A
+	actions?: NonNullable<A>[]
 }
 
 export type TransitionMap<
@@ -13,20 +13,20 @@ export type TransitionMap<
 	E extends string,
 	G extends string | undefined = undefined,
 	A extends string | undefined = undefined
-> = Record<E | '', Transition<S, G, A> | Transition<S, G, A>[]>
+> = Partial<Record<E | '', Transition<S, G, A> | Transition<S, G, A>[]>>
 
 export type GuardMap<
-	G extends string | undefined,
 	C extends {},
-	S extends string
+	S extends string,
+	G extends string | undefined = undefined
 > = G extends undefined
 	? undefined
 	: Record<NonNullable<G>, (context: C, currentState: S) => boolean>
 
 export type ActionMap<
-	A extends string | undefined,
 	C extends {},
-	S extends string
+	S extends string,
+	A extends string | undefined = undefined
 > = A extends undefined
 	? undefined
 	: Record<NonNullable<A>, (context: C, currentState: S) => C>
@@ -42,18 +42,30 @@ export type Machine<
 	on?: TransitionMap<S, E, G, A>
 }
 
-export type Service<
-	M extends Machine<S, E, G, A>,
+export type ServiceOptions<
 	C extends {},
 	S extends string,
 	E extends string,
 	G extends string | undefined = undefined,
 	A extends string | undefined = undefined
 > = {
-	machine: M
+	machine: Machine<S, E, G, A>
+	context: C
+	initialState?: S
+	guards: GuardMap<C, S, G>
+	actions: ActionMap<C, S, A>
+}
+
+export type Service<
+	C extends {},
+	S extends string,
+	E extends string,
+	G extends string | undefined = undefined,
+	A extends string | undefined = undefined
+> = {
+	machine: Machine<S, E, G, A>
 	context: C
 	currentState: S
-
-	actions: ActionMap<A, C, S>
-	guards: GuardMap<G, C, S>
+	guards: GuardMap<C, S, G>
+	actions: ActionMap<C, S, A>
 }

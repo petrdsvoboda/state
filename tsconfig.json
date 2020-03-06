@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"target": "es6",
 		"module": "commonjs",
-		"lib": ["esnext"],
+		"lib": ["esnext", "dom"],
 		"rootDir": "src",
 		"outDir": "lib",
 		"declaration": true,
@@ -15,5 +15,5 @@
 		"sourceMap": true,
 		"strict": true
 	},
-	"exclude": ["node_modules", "lib", "**/__tests__"]
+	"exclude": ["node_modules", "lib"]
 }
