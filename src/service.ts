@@ -3,7 +3,8 @@ import {
 	ServiceOptions,
 	Transition,
 	GuardMap,
-	ActionMap
+	ActionMap,
+	Event
 } from './types'
 
 // const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
@@ -14,49 +15,64 @@ const isArray = <T>(arg: T | T[]): arg is T[] => Array.isArray(arg)
 export function createService<
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET, EP>,
 	G extends undefined,
-	A extends undefined
+	A extends undefined,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 >(
-	options: Omit<ServiceOptions<C, S, E, G, A>, 'guards' | 'actions'>
-): Service<C, S, E, undefined, undefined>
+	options: Omit<ServiceOptions<C, S, E, G, A, ET, EP>, 'guards' | 'actions'>
+): Service<C, S, E, undefined, undefined, ET, EP>
 export function createService<
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET, EP>,
 	G extends string,
-	A extends undefined
+	A extends undefined,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 >(
-	options: Omit<ServiceOptions<C, S, E, G, A>, 'actions'>
-): Service<C, S, E, G, undefined>
+	options: Omit<ServiceOptions<C, S, E, G, A, ET, EP>, 'actions'>
+): Service<C, S, E, G, undefined, ET, EP>
 export function createService<
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET, EP>,
 	G extends undefined,
-	A extends string
+	A extends string,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 >(
-	options: Omit<ServiceOptions<C, S, E, G, A>, 'guards'>
-): Service<C, S, E, undefined, A>
+	options: Omit<ServiceOptions<C, S, E, G, A, ET, EP>, 'guards'>
+): Service<C, S, E, undefined, A, ET, EP>
 export function createService<
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET, EP>,
 	G extends string,
-	A extends string
->(options: ServiceOptions<C, S, E, G, A>): Service<C, S, E, G, A>
+	A extends string,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
+>(
+	options: ServiceOptions<C, S, E, G, A, ET, EP>
+): Service<C, S, E, G, A, ET, EP>
 export function createService<
 	C extends {},
 	S extends string,
-	E extends string,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
+	E extends Event<ET, EP>,
+	G extends string,
+	A extends string,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 >(
-	options: Omit<ServiceOptions<C, S, E, G, A>, 'guards' | 'actions'> & {
+	options: Omit<
+		ServiceOptions<C, S, E, G, A, ET, EP>,
+		'guards' | 'actions'
+	> & {
 		guards?: GuardMap<C, S, G>
-		actions?: ActionMap<C, S, A>
+		actions?: ActionMap<C, S, E, A, ET, EP>
 	}
-): Service<C, S, E, G, A> {
+): Service<C, S, E, G, A, ET, EP> {
 	return {
 		machine: options.machine,
 		context: options.context,
@@ -70,18 +86,22 @@ export function createService<
 export const sendEvent = <
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET, EP>,
 	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
+	A extends string | undefined = undefined,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 >(
-	service: Service<C, S, E, G, A>,
-	event: E | ''
-): Service<C, S, E, G, A> => {
+	service: Service<C, S, E, G, A, ET, EP>,
+	event: E | ET | ''
+): Service<C, S, E, G, A, ET, EP> => {
 	const { machine, context, currentState, guards, actions } = service
+	const regEvent: E =
+		typeof event === 'string' ? ({ type: event } as E) : event
 
 	let perform: Transition<S, G, A> | Transition<S, G, A>[] | undefined =
-		machine.states[currentState].on?.[event]
-	if (perform === undefined) perform = machine.on?.[event]
+		machine.states[currentState].on?.[regEvent.type]
+	if (perform === undefined) perform = machine.on?.[regEvent.type]
 	if (perform === undefined) return service
 
 	const performTransitions = isArray(perform) ? perform : [perform]
@@ -106,7 +126,8 @@ export const sendEvent = <
 	let newContext = context
 	if (transition.actions && actions) {
 		newContext = transition.actions.reduce(
-			(acc, curr) => Object.assign(acc, actions[curr](acc, currentState)),
+			(acc, curr) =>
+				Object.assign(acc, actions[curr](acc, currentState, regEvent)),
 			context
 		)
 	}

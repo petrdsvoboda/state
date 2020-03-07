@@ -1,3 +1,11 @@
+export type BaseEvent<T extends string> = {
+	type: T
+}
+export type EventWithPayload<T extends string, P> = BaseEvent<T> & {
+	payload: P
+}
+export type Event<T extends string, P> = BaseEvent<T> | EventWithPayload<T, P>
+
 export type Transition<
 	S extends string,
 	G extends string | undefined = undefined,
@@ -26,10 +34,13 @@ export type GuardMap<
 export type ActionMap<
 	C extends {},
 	S extends string,
-	A extends string | undefined = undefined
+	E extends Event<ET | '', EP>,
+	A extends string | undefined = undefined,
+	ET extends string = string,
+	EP extends {} | undefined = {}
 > = A extends undefined
 	? undefined
-	: Record<NonNullable<A>, (context: C, currentState: S) => C>
+	: Record<NonNullable<A>, (context: C, currentState: S, event: E) => C>
 
 export type Machine<
 	S extends string,
@@ -45,27 +56,31 @@ export type Machine<
 export type ServiceOptions<
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET | '', EP>,
 	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
+	A extends string | undefined = undefined,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 > = {
-	machine: Machine<S, E, G, A>
+	machine: Machine<S, ET, G, A>
 	context: C
 	initialState?: S
 	guards: GuardMap<C, S, G>
-	actions: ActionMap<C, S, A>
+	actions: ActionMap<C, S, E, A, ET, EP>
 }
 
 export type Service<
 	C extends {},
 	S extends string,
-	E extends string,
+	E extends Event<ET | '', EP>,
 	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
+	A extends string | undefined = undefined,
+	ET extends string = string,
+	EP extends {} | undefined = undefined
 > = {
-	machine: Machine<S, E, G, A>
+	machine: Machine<S, ET, G, A>
 	context: C
 	currentState: S
 	guards: GuardMap<C, S, G>
-	actions: ActionMap<C, S, A>
+	actions: ActionMap<C, S, E, A, ET, EP>
 }

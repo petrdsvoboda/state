@@ -1,10 +1,14 @@
 import { createService, sendEvent } from '../service'
-import { Machine, GuardMap, ActionMap } from '../types'
+import { Machine, GuardMap, ActionMap, EventWithPayload } from '../types'
 
 describe('createService', () => {
 	type State = 'new' | 'done'
-	type Event = 'complete'
-	const machine: Machine<State, Event> = {
+	type SimpleEvents = 'complete'
+	type CustomEvent = EventWithPayload<'custom', { counter: number }>
+	type CustomEvents = CustomEvent
+	type Event = { type: SimpleEvents } | CustomEvents
+
+	const machine: Machine<State, Event['type']> = {
 		initial: 'new',
 		states: {
 			new: {},
@@ -42,7 +46,7 @@ describe('createService', () => {
 		const guards: GuardMap<{}, State, Guard> = {
 			applyGuard: () => true
 		}
-		const guardMachine: Machine<State, Event, Guard> = {
+		const guardMachine: Machine<State, Event['type'], Guard> = {
 			initial: 'new',
 			states: {
 				new: {},
@@ -65,10 +69,15 @@ describe('createService', () => {
 
 	test('it creates service with actions', () => {
 		type Action = 'applyAction'
-		const actions: ActionMap<{}, State, Action> = {
-			applyAction: () => ({})
+		const actions: ActionMap<{}, State, Event, Action> = {
+			applyAction: ({}) => ({})
 		}
-		const guardMachine: Machine<State, Event, undefined, Action> = {
+		const actionMachine: Machine<
+			State,
+			Event['type'],
+			undefined,
+			Action
+		> = {
 			initial: 'new',
 			states: {
 				new: {},
@@ -76,7 +85,7 @@ describe('createService', () => {
 			}
 		}
 		const service = createService({
-			machine: guardMachine,
+			machine: actionMachine,
 			context,
 			actions
 		})
@@ -99,10 +108,14 @@ describe('sendEvent', () => {
 		| 'state4'
 		| 'state5'
 		| 'done'
-	type Event = 'do' | 'back' | 'complete' | 'restart'
+
+	type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
+	type CustomEvent = EventWithPayload<'addPayload', { counter: number }>
+	type CustomEvents = CustomEvent
+	type Event = { type: SimpleEvents } | CustomEvents
 	type Guard = 'canDo'
 	type Action = 'set' | 'inc' | 'delete'
-	const machine: Machine<State, Event, Guard, Action> = {
+	const machine: Machine<State, Event['type'], Guard, Action> = {
 		initial: 'new',
 		states: {
 			new: {
@@ -120,7 +133,12 @@ describe('sendEvent', () => {
 					back: { target: 'new', cond: 'canDo' }
 				}
 			},
-			state2: { on: { do: { target: 'state3', actions: ['inc'] } } },
+			state2: {
+				on: {
+					do: { target: 'state3', actions: ['inc'] },
+					addPayload: { target: 'state3', actions: ['set'] }
+				}
+			},
 			state3: {},
 			state4: { on: { '': { target: 'state5', actions: ['set'] } } },
 			state5: { on: { '': { target: 'done', actions: ['inc'] } } },
@@ -135,13 +153,20 @@ describe('sendEvent', () => {
 	const guards: GuardMap<Context, State, Guard> = {
 		canDo: ({ counter }) => counter === 1
 	}
-	const actions: ActionMap<Context, State, Action> = {
-		set: () => ({ counter: 1 }),
+	const actions: ActionMap<Context, State, Event, Action> = {
+		set: (_x, _y, event) => ({
+			counter: event.type === 'addPayload' ? event.payload.counter : 1
+		}),
 		inc: ({ counter }) =>
 			counter ? { counter: counter + 1 } : { counter: 1 },
 		delete: () => ({})
 	}
-	const baseService = createService({ machine, context, guards, actions })
+	const baseService = createService({
+		machine,
+		context,
+		guards,
+		actions
+	})
 
 	test('it completes simple transition', () => {
 		expect(sendEvent(baseService, 'complete')).toEqual({
@@ -224,6 +249,21 @@ describe('sendEvent', () => {
 			...service,
 			currentState: 'state3',
 			context: { counter: 2 }
+		} as typeof service)
+	})
+
+	test('it handles actions with data', () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: 'state2'
+		})
+		expect(
+			sendEvent(service, { type: 'addPayload', payload: { counter: 5 } })
+		).toEqual({
+			...service,
+			currentState: 'state3',
+			context: { counter: 5 }
 		} as typeof service)
 	})
 })
