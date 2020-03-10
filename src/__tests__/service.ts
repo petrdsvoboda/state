@@ -107,6 +107,8 @@ describe('sendEvent', () => {
 		| 'state3'
 		| 'state4'
 		| 'state5'
+		| 'state6'
+		| 'state7'
 		| 'done'
 
 	type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
@@ -147,6 +149,12 @@ describe('sendEvent', () => {
 				}
 			},
 			state5: { on: { '': { target: 'done', actions: ['inc'] } } },
+			state6: { on: { do: { target: 'done' } } },
+			state7: {
+				on: { do: { target: 'state6' } },
+				exit: ['inc'],
+				entry: ['inc']
+			},
 			done: {}
 		},
 		on: { restart: { target: 'new' } }
@@ -279,7 +287,7 @@ describe('sendEvent', () => {
 		} as typeof service)
 	})
 
-	test('handles failed action', async () => {
+	test('it handles failed action', async () => {
 		const service = createService({
 			...baseService,
 			context: { counter: 1 },
@@ -289,5 +297,33 @@ describe('sendEvent', () => {
 		await expect(sendEvent(service, 'do')).rejects.toThrow(
 			new EventError('do', 'fail', 'fail')
 		)
+	})
+
+	test('it handles entry action', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: 'state6'
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 'state7',
+			context: { counter: 2 }
+		} as typeof service)
+	})
+
+	test('it handles exit action', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: 'state7'
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 'state6',
+			context: { counter: 2 }
+		} as typeof service)
 	})
 })

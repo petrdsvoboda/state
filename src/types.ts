@@ -37,7 +37,7 @@ export type ActionFn<
 	E extends Event<ET | '', EP>,
 	ET extends string = string,
 	EP extends {} | undefined = {}
-> = (context: C, currentState: S, event: E) => Promise<C>
+> = (context: C, currentState: S, event: E) => Promise<Partial<C>>
 export type ActionMap<
 	C extends {},
 	S extends string,
@@ -56,7 +56,15 @@ export type Machine<
 	A extends string | undefined = undefined
 > = {
 	initial: S
-	states: Record<S, { on?: TransitionMap<S, E, G, A> }>
+	states: Record<
+		S,
+		{
+			on?: TransitionMap<S, E, G, A>
+			entry?: NonNullable<A>[]
+			exit?: NonNullable<A>[]
+			type?: 'default' | 'final'
+		}
+	>
 	on?: TransitionMap<S, E, G, A>
 }
 
