@@ -12,6 +12,13 @@ import {
 
 const isArray = <T>(arg: T | T[]): arg is T[] => Array.isArray(arg)
 
+export class EventError extends Error {
+	constructor(event: string, action: string, message: string) {
+		super(`Error in action ${action} while performing ${event}: ${message}`)
+		this.name = 'EventError'
+	}
+}
+
 export function createService<
 	C extends {},
 	S extends string,
@@ -83,7 +90,7 @@ export function createService<
 	}
 }
 
-export const sendEvent = <
+export const sendEvent = async <
 	C extends {},
 	S extends string,
 	E extends Event<ET, EP>,
@@ -94,7 +101,7 @@ export const sendEvent = <
 >(
 	service: Service<C, S, E, G, A, ET, EP>,
 	event: E | ET | ''
-): Service<C, S, E, G, A, ET, EP> => {
+): Promise<Service<C, S, E, G, A, ET, EP>> => {
 	const { machine, context, currentState, guards, actions } = service
 	const regEvent: E =
 		typeof event === 'string' ? ({ type: event } as E) : event
@@ -125,10 +132,19 @@ export const sendEvent = <
 	// Update context using actions
 	let newContext = context
 	if (transition.actions && actions) {
-		newContext = transition.actions.reduce(
-			(acc, curr) =>
-				Object.assign(acc, actions[curr](acc, currentState, regEvent)),
-			context
+		newContext = await transition.actions.reduce<Promise<C>>(
+			async (acc, curr) => {
+				try {
+					return await actions[curr](
+						await acc,
+						currentState,
+						regEvent
+					)
+				} catch (err) {
+					throw new EventError(regEvent.type, curr, err)
+				}
+			},
+			Promise.resolve(newContext)
 		)
 	}
 
@@ -140,7 +156,7 @@ export const sendEvent = <
 		currentState: newState
 	}
 	// Apply auto transitions
-	newService = sendEvent(newService, '')
+	newService = await sendEvent(newService, '')
 
 	return newService
 }

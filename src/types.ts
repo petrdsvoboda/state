@@ -31,6 +31,13 @@ export type GuardMap<
 	? undefined
 	: Record<NonNullable<G>, (context: C, currentState: S) => boolean>
 
+export type ActionFn<
+	C extends {},
+	S extends string,
+	E extends Event<ET | '', EP>,
+	ET extends string = string,
+	EP extends {} | undefined = {}
+> = (context: C, currentState: S, event: E) => Promise<C>
 export type ActionMap<
 	C extends {},
 	S extends string,
@@ -40,7 +47,7 @@ export type ActionMap<
 	EP extends {} | undefined = {}
 > = A extends undefined
 	? undefined
-	: Record<NonNullable<A>, (context: C, currentState: S, event: E) => C>
+	: Record<NonNullable<A>, ActionFn<C, S, E, ET, EP>>
 
 export type Machine<
 	S extends string,
