@@ -1,7 +1,8 @@
 {
-	"name": "state",
-	"version": "1.0.0",
-	"main": "index.ts",
+	"name": "@petrdorg/state",
+	"version": "0.1.0",
+	"main": "lib/index.js",
+	"types": "lib/index.d.ts",
 	"repository": "https://github.com/petrdsvoboda/state",
 	"author": "Petr D. Svoboda <petrdsvoboda@gmail.com>",
 	"license": "MIT",
