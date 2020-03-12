@@ -149,7 +149,7 @@ describe('sendEvent', () => {
 				}
 			},
 			state5: { on: { '': { target: 'done', actions: ['inc'] } } },
-			state6: { on: { do: { target: 'done' } } },
+			state6: { on: { do: { target: 'state7' } } },
 			state7: {
 				on: { do: { target: 'state6' } },
 				exit: ['inc'],

@@ -129,47 +129,48 @@ export const sendEvent = async <
 	)
 	if (transition === null) return service
 
-	const applyActions = async (
+	const applyAction = async (
 		acc: Promise<C>,
 		curr: NonNullable<A>
 	): Promise<C> => {
-		if (!actions) return acc
+		const prev = await acc
+		if (!actions) return prev
 
 		try {
 			const updatedContext = await actions[curr](
-				await acc,
+				prev,
 				currentState,
 				regEvent
 			)
-			return Object.assign(acc, updatedContext)
+			return Object.assign(prev, updatedContext)
 		} catch (err) {
 			throw new EventError(regEvent.type, curr, err)
 		}
 	}
 
+	const applyActions = async (
+		actions: NonNullable<A>[] | undefined,
+		context: C
+	): Promise<C> => {
+		if (actions === undefined) return context
+
+		return await actions.reduce<Promise<C>>(
+			applyAction,
+			Promise.resolve(context)
+		)
+	}
+
 	// Update context using actions
 	let newContext = context
-
-	const exitActions = machine.states[currentState].exit
-	if (exitActions) {
-		newContext = await exitActions.reduce<Promise<C>>(
-			applyActions,
-			Promise.resolve(newContext)
-		)
-	}
-	if (transition.actions) {
-		newContext = await transition.actions.reduce<Promise<C>>(
-			applyActions,
-			Promise.resolve(newContext)
-		)
-	}
-	const entryActions = machine.states[transition.target].entry
-	if (entryActions) {
-		newContext = await entryActions.reduce<Promise<C>>(
-			applyActions,
-			Promise.resolve(newContext)
-		)
-	}
+	newContext = await applyActions(
+		machine.states[currentState].exit,
+		newContext
+	)
+	newContext = await applyActions(transition.actions, newContext)
+	newContext = await applyActions(
+		machine.states[transition.target].entry,
+		newContext
+	)
 
 	// Successfull transition
 	const newState = transition.target
