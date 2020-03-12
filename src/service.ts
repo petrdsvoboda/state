@@ -129,7 +129,7 @@ export const sendEvent = async <
 	)
 	if (transition === null) return service
 
-	const applyAction = async (
+	const applyAction = (state: S) => async (
 		acc: Promise<C>,
 		curr: NonNullable<A>
 	): Promise<C> => {
@@ -137,11 +137,7 @@ export const sendEvent = async <
 		if (!actions) return prev
 
 		try {
-			const updatedContext = await actions[curr](
-				prev,
-				currentState,
-				regEvent
-			)
+			const updatedContext = await actions[curr](prev, state, regEvent)
 			return Object.assign(prev, updatedContext)
 		} catch (err) {
 			throw new EventError(regEvent.type, curr, err)
@@ -150,26 +146,29 @@ export const sendEvent = async <
 
 	const applyActions = async (
 		actions: NonNullable<A>[] | undefined,
+		state: S,
 		context: C
 	): Promise<C> => {
 		if (actions === undefined) return context
 
 		return await actions.reduce<Promise<C>>(
-			applyAction,
+			applyAction(state),
 			Promise.resolve(context)
 		)
 	}
 
 	// Update context using actions
-	let newContext = context
-	newContext = await applyActions(
-		machine.states[currentState].exit,
-		newContext
-	)
-	newContext = await applyActions(transition.actions, newContext)
-	newContext = await applyActions(
-		machine.states[transition.target].entry,
-		newContext
+	const actionData: [NonNullable<A>[] | undefined, S][] = [
+		[machine.exit, currentState],
+		[machine.states[currentState].exit, currentState],
+		[transition.actions, currentState],
+		[machine.states[transition.target].entry, transition.target],
+		[machine.entry, transition.target]
+	]
+	const newContext = await actionData.reduce(
+		async (acc, [actions, state]) =>
+			await applyActions(actions, state, await acc),
+		Promise.resolve(context)
 	)
 
 	// Successfull transition
@@ -179,6 +178,7 @@ export const sendEvent = async <
 		context: newContext,
 		currentState: newState
 	}
+
 	// Apply auto transitions
 	newService = await sendEvent(newService, '')
 

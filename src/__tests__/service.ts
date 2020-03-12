@@ -109,6 +109,7 @@ describe('sendEvent', () => {
 		| 'state5'
 		| 'state6'
 		| 'state7'
+		| 'state8'
 		| 'done'
 
 	type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
@@ -116,7 +117,7 @@ describe('sendEvent', () => {
 	type CustomEvents = CustomEvent
 	type Event = { type: SimpleEvents } | CustomEvents
 	type Guard = 'canDo'
-	type Action = 'set' | 'inc' | 'delete' | 'fail'
+	type Action = 'set' | 'inc' | 'delete' | 'fail' | 'globSet'
 	const machine: Machine<State, Event['type'], Guard, Action> = {
 		initial: 'new',
 		states: {
@@ -155,9 +156,18 @@ describe('sendEvent', () => {
 				exit: ['inc'],
 				entry: ['inc']
 			},
-			done: {}
+			state8: {
+				on: {
+					do: { target: 'done', actions: ['inc'] },
+					back: { target: 'done' }
+				},
+				exit: ['set']
+			},
+			done: { entry: ['set'] }
 		},
-		on: { restart: { target: 'new' } }
+		on: { restart: { target: 'new' } },
+		entry: ['globSet'],
+		exit: ['globSet']
 	}
 	type Context = {
 		counter?: number
@@ -167,16 +177,34 @@ describe('sendEvent', () => {
 		canDo: ({ counter }) => counter === 1
 	}
 	const actions: ActionMap<Context, State, Event, Action> = {
-		set: (_x, _y, event) =>
-			Promise.resolve({
-				counter: event.type === 'addPayload' ? event.payload.counter : 1
-			}),
+		set: (context, state, event) => {
+			if (state === 'done' && event.type === 'back') {
+				return Promise.resolve({ counter: 1 })
+			} else if (state === 'done') {
+				return Promise.resolve(context)
+			} else {
+				return Promise.resolve({
+					counter:
+						event.type === 'addPayload' ? event.payload.counter : 1
+				})
+			}
+		},
 		inc: ({ counter }) =>
 			Promise.resolve(
 				counter ? { counter: counter + 1 } : { counter: 1 }
 			),
 		delete: () => Promise.resolve({}),
-		fail: () => Promise.reject('fail')
+		fail: () => Promise.reject('fail'),
+		globSet: (context, state, { type }) => {
+			if (
+				(state === 'state8' && type === 'do') ||
+				(state === 'done' && type === 'back')
+			) {
+				return Promise.resolve({ counter: 2 })
+			} else {
+				return Promise.resolve(context)
+			}
+		}
 	}
 	const baseService = createService({
 		machine,
@@ -324,6 +352,48 @@ describe('sendEvent', () => {
 			...service,
 			currentState: 'state6',
 			context: { counter: 2 }
+		} as typeof service)
+	})
+
+	test('it handles global entry action', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: 'state8'
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 'done',
+			context: { counter: 2 }
+		} as typeof service)
+	})
+
+	test('it handles global exit action', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: 'state8'
+		})
+
+		expect(await sendEvent(service, 'back')).toEqual({
+			...service,
+			currentState: 'done',
+			context: { counter: 2 }
+		} as typeof service)
+	})
+
+	test('it handles transition if no actions provided', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: 'state8',
+			actions: undefined as any
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 'done'
 		} as typeof service)
 	})
 })

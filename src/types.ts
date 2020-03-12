@@ -66,6 +66,8 @@ export type Machine<
 		}
 	>
 	on?: TransitionMap<S, E, G, A>
+	entry?: NonNullable<A>[]
+	exit?: NonNullable<A>[]
 }
 
 export type ServiceOptions<
