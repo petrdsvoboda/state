@@ -49,22 +49,31 @@ export type ActionMap<
 	? undefined
 	: Record<NonNullable<A>, ActionFn<C, S, E, ET, EP>>
 
+export type StateData<
+	S extends string,
+	E extends string,
+	G extends string | undefined = undefined,
+	A extends string | undefined = undefined
+> = {
+	on?: TransitionMap<S, E, G, A>
+	entry?: NonNullable<A>[]
+	exit?: NonNullable<A>[]
+	type?: 'default' | 'final'
+}
+
+export interface StateSchema {
+	[key: string]: StateSchema | {}
+}
+
 export type Machine<
 	S extends string,
 	E extends string,
 	G extends string | undefined = undefined,
 	A extends string | undefined = undefined
 > = {
+	id: string
 	initial: S
-	states: Record<
-		S,
-		{
-			on?: TransitionMap<S, E, G, A>
-			entry?: NonNullable<A>[]
-			exit?: NonNullable<A>[]
-			type?: 'default' | 'final'
-		}
-	>
+	states: Record<S, StateData<S, E, G, A> | Machine<S, E, G, A>>
 	on?: TransitionMap<S, E, G, A>
 	entry?: NonNullable<A>[]
 	exit?: NonNullable<A>[]

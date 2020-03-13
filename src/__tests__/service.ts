@@ -9,6 +9,7 @@ describe('createService', () => {
 	type Event = { type: SimpleEvents } | CustomEvents
 
 	const machine: Machine<State, Event['type']> = {
+		id: 'test',
 		initial: 'new',
 		states: {
 			new: {},
@@ -47,6 +48,7 @@ describe('createService', () => {
 			applyGuard: () => true
 		}
 		const guardMachine: Machine<State, Event['type'], Guard> = {
+			id: 'test',
 			initial: 'new',
 			states: {
 				new: {},
@@ -78,6 +80,7 @@ describe('createService', () => {
 			undefined,
 			Action
 		> = {
+			id: 'test',
 			initial: 'new',
 			states: {
 				new: {},
@@ -119,6 +122,7 @@ describe('sendEvent', () => {
 	type Guard = 'canDo'
 	type Action = 'set' | 'inc' | 'delete' | 'fail' | 'globSet'
 	const machine: Machine<State, Event['type'], Guard, Action> = {
+		id: 'test',
 		initial: 'new',
 		states: {
 			new: {

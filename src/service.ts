@@ -4,7 +4,9 @@ import {
 	Transition,
 	GuardMap,
 	ActionMap,
-	Event
+	Event,
+	StateData,
+	Machine
 } from './types'
 
 // const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
@@ -106,8 +108,38 @@ export const sendEvent = async <
 	const regEvent: E =
 		typeof event === 'string' ? ({ type: event } as E) : event
 
-	let perform: Transition<S, G, A> | Transition<S, G, A>[] | undefined =
-		machine.states[currentState].on?.[regEvent.type]
+	const statePath = currentState.split('.') as S[]
+
+	const getMachineLevel = (
+		path: S[],
+		machine: StateData<S, E['type'], G, A> | Machine<S, E['type'], G, A>
+	): StateData<S, E['type'], G, A> => {
+		const currLevel = path.reduce((acc, curr) => {
+			'id' in acc ? acc.states[curr] : acc
+			return acc
+		}, machine)
+		return currLevel
+	}
+	type PerformTransaction =
+		| Transition<S, G, A>
+		| Transition<S, G, A>[]
+		| undefined
+	let perform: PerformTransaction
+	perform = statePath.reduce<
+		| Transition<S, G, A>
+		| Transition<S, G, A>[]
+		| undefined
+		| StateData<S, E['type'], G, A>
+		| Machine<S, E['type'], G, A>
+	>(
+		(acc, curr) =>
+			acc === undefined || 'target' in acc || Array.isArray(acc)
+				? acc
+				: 'id' in acc
+				? acc.states[curr]
+				: acc.on?.[regEvent.type],
+		machine
+	)
 	if (perform === undefined) perform = machine.on?.[regEvent.type]
 	if (perform === undefined) return service
 
