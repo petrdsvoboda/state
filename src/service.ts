@@ -1,11 +1,13 @@
 import {
 	Service,
-	ServiceOptions,
+	ServiceConfig,
 	Transition,
 	GuardMap,
 	ActionMap,
+	State,
+	StateSchema,
 	Event,
-	StateData,
+	EventObject,
 	Machine
 } from './types'
 
@@ -22,93 +24,44 @@ export class EventError extends Error {
 }
 
 export function createService<
-	C extends {},
-	S extends string,
-	E extends Event<ET, EP>,
-	G extends undefined,
-	A extends undefined,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
+	TContext extends {},
+	TEventObject extends EventObject,
+	TStateSchema extends StateSchema,
+	TGuard extends string,
+	TAction extends string
 >(
-	options: Omit<ServiceOptions<C, S, E, G, A, ET, EP>, 'guards' | 'actions'>
-): Service<C, S, E, undefined, undefined, ET, EP>
-export function createService<
-	C extends {},
-	S extends string,
-	E extends Event<ET, EP>,
-	G extends string,
-	A extends undefined,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
->(
-	options: Omit<ServiceOptions<C, S, E, G, A, ET, EP>, 'actions'>
-): Service<C, S, E, G, undefined, ET, EP>
-export function createService<
-	C extends {},
-	S extends string,
-	E extends Event<ET, EP>,
-	G extends undefined,
-	A extends string,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
->(
-	options: Omit<ServiceOptions<C, S, E, G, A, ET, EP>, 'guards'>
-): Service<C, S, E, undefined, A, ET, EP>
-export function createService<
-	C extends {},
-	S extends string,
-	E extends Event<ET, EP>,
-	G extends string,
-	A extends string,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
->(
-	options: ServiceOptions<C, S, E, G, A, ET, EP>
-): Service<C, S, E, G, A, ET, EP>
-export function createService<
-	C extends {},
-	S extends string,
-	E extends Event<ET, EP>,
-	G extends string,
-	A extends string,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
->(
-	options: Omit<
-		ServiceOptions<C, S, E, G, A, ET, EP>,
-		'guards' | 'actions'
-	> & {
-		guards?: GuardMap<C, S, E, G, ET, EP>
-		actions?: ActionMap<C, S, E, A, ET, EP>
-	}
-): Service<C, S, E, G, A, ET, EP> {
+	options: ServiceConfig<
+		TContext,
+		TEventObject,
+		TStateSchema,
+		TGuard,
+		TAction
+	>
+): Service<TContext, TEventObject, TStateSchema, TGuard, TAction> {
 	return {
 		machine: options.machine,
 		context: options.context,
-		// TODO: Proper typing
-		guards: options.guards as any,
-		actions: options.actions as any,
+		guards: options.guards,
+		actions: options.actions,
 		currentState: options.initialState ?? options.machine.initial
 	}
 }
 
 export const sendEvent = async <
-	C extends {},
-	S extends string,
-	E extends Event<ET, EP>,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
+	TContext extends {},
+	TEventObject extends EventObject,
+	TStateSchema extends StateSchema,
+	TGuard extends string,
+	TAction extends string
 >(
-	service: Service<C, S, E, G, A, ET, EP>,
-	event: E | ET | ''
-): Promise<Service<C, S, E, G, A, ET, EP>> => {
+	service: Service<TContext, TEventObject, TStateSchema, TGuard, TAction>,
+	event: Event<TEventObject>
+): Promise<Service<TContext, TEventObject, TStateSchema, TGuard, TAction>> => {
 	const { machine, context, currentState, guards, actions } = service
 	const regEvent: E =
 		typeof event === 'string' ? ({ type: event } as E) : event
 
-	const statePath = currentState.split('.') as S[]
+	// const statePath = currentState.split('.') as S[]
 
 	// const getMachineLevel = (
 	// 	path: S[],

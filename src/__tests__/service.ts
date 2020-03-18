@@ -1,14 +1,19 @@
 import { createService, sendEvent, EventError } from '../service'
-import { Machine, GuardMap, ActionMap, EventWithPayload } from '../types'
+import { Machine, GuardMap, ActionMap, EventWithPayload, State } from '../types'
 
 describe('createService', () => {
-	type State = 'new' | 'done'
 	type SimpleEvents = 'complete'
-	type CustomEvent = EventWithPayload<'custom', { counter: number }>
+	type CustomEvent = EventWithPayload<{ counter: number }>
 	type CustomEvents = CustomEvent
 	type Event = { type: SimpleEvents } | CustomEvents
 
-	const machine: Machine<State, Event['type']> = {
+	const schema = {
+		new: {},
+		done: {}
+	}
+	type StateSchema = typeof schema
+
+	const machine: Machine<StateSchema, Event['type']> = {
 		id: 'test',
 		initial: 'new',
 		states: {
@@ -44,10 +49,10 @@ describe('createService', () => {
 
 	test('it creates service with guards', () => {
 		type Guard = 'applyGuard'
-		const guards: GuardMap<{}, State, Guard> = {
+		const guards: GuardMap<{}, State<StateSchema>, Event['type']> = {
 			applyGuard: () => true
 		}
-		const guardMachine: Machine<State, Event['type'], Guard> = {
+		const guardMachine: Machine<State, Event['type'], keyof guards> = {
 			id: 'test',
 			initial: 'new',
 			states: {
@@ -71,14 +76,14 @@ describe('createService', () => {
 
 	test('it creates service with actions', () => {
 		type Action = 'applyAction'
-		const actions: ActionMap<{}, State, Event, Action> = {
+		const actions: ActionMap<{}, State<StateSchema>, Event['type']> = {
 			applyAction: ({}) => Promise.resolve({})
 		}
 		const actionMachine: Machine<
 			State,
 			Event['type'],
 			undefined,
-			Action
+			keyof actions
 		> = {
 			id: 'test',
 			initial: 'new',
@@ -103,25 +108,27 @@ describe('createService', () => {
 })
 
 describe('sendEvent', () => {
-	type State =
-		| 'new'
-		| 'state1'
-		| 'state2'
-		| 'state3'
-		| 'state4'
-		| 'state5'
-		| 'state6'
-		| 'state7'
-		| 'state8'
-		| 'done'
-
 	type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
-	type CustomEvent = EventWithPayload<'addPayload', { counter: number }>
+	type CustomEvent = EventWithPayload<{ counter: number }>
 	type CustomEvents = CustomEvent
 	type Event = { type: SimpleEvents } | CustomEvents
 	type Guard = 'canDo'
 	type Action = 'set' | 'inc' | 'delete' | 'fail' | 'globSet'
-	const machine: Machine<State, Event['type'], Guard, Action> = {
+
+	const schema = {
+		new: {},
+		state1: {},
+		state2: {},
+		state3: {},
+		state4: {},
+		state5: {},
+		state6: {},
+		state7: {},
+		state8: {},
+		done: {}
+	}
+
+	const machine: Machine<typeof schema, Event['type'], Guard, Action> = {
 		id: 'test',
 		initial: 'new',
 		states: {
