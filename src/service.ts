@@ -78,7 +78,7 @@ export function createService<
 		ServiceOptions<C, S, E, G, A, ET, EP>,
 		'guards' | 'actions'
 	> & {
-		guards?: GuardMap<C, S, G>
+		guards?: GuardMap<C, S, E, G, ET, EP>
 		actions?: ActionMap<C, S, E, A, ET, EP>
 	}
 ): Service<C, S, E, G, A, ET, EP> {
@@ -110,16 +110,16 @@ export const sendEvent = async <
 
 	const statePath = currentState.split('.') as S[]
 
-	const getMachineLevel = (
-		path: S[],
-		machine: StateData<S, E['type'], G, A> | Machine<S, E['type'], G, A>
-	): StateData<S, E['type'], G, A> => {
-		const currLevel = path.reduce((acc, curr) => {
-			'id' in acc ? acc.states[curr] : acc
-			return acc
-		}, machine)
-		return currLevel
-	}
+	// const getMachineLevel = (
+	// 	path: S[],
+	// 	machine: StateData<S, E['type'], G, A> | Machine<S, E['type'], G, A>
+	// ): StateData<S, E['type'], G, A> => {
+	// 	const currLevel = path.reduce((acc, curr) => {
+	// 		'id' in acc ? acc.states[curr] : acc
+	// 		return acc
+	// 	}, machine)
+	// 	return currLevel
+	// }
 	type PerformTransaction =
 		| Transition<S, G, A>
 		| Transition<S, G, A>[]
@@ -146,19 +146,18 @@ export const sendEvent = async <
 	const performTransitions = isArray(perform) ? perform : [perform]
 
 	// Get first transition that passes guard
-	const transition = performTransitions.reduce<Transition<S, G, A> | null>(
-		(acc, curr) => {
-			if (acc !== null) {
-				return acc
-			} else if (curr.cond && guards) {
-				const guard = guards[curr.cond]
-				return guard(context, currentState) ? curr : null
-			} else {
-				return curr
-			}
-		},
-		null
-	)
+	const transition = await performTransitions.reduce<
+		Promise<Transition<S, G, A> | null>
+	>(async (acc, curr) => {
+		if (acc !== null) {
+			return acc
+		} else if (curr.cond && guards) {
+			const guard = guards[curr.cond]
+			return (await guard(context, currentState, regEvent)) ? curr : null
+		} else {
+			return curr
+		}
+	}, Promise.resolve(null))
 	if (transition === null) return service
 
 	const applyAction = (state: S) => async (

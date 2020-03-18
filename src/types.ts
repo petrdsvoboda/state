@@ -1,35 +1,54 @@
-export type BaseEvent<T extends string> = {
-	type: T
+export type EventObject<TType extends string> = {
+	type: TType
 }
-export type EventWithPayload<T extends string, P> = BaseEvent<T> & {
-	payload: P
+export type EventWithPayload<TType extends string, TPayload> = EventObject<
+	TType
+> & {
+	payload: TPayload
 }
-export type Event<T extends string, P> = BaseEvent<T> | EventWithPayload<T, P>
+export type Event<TEvent extends EventObject<TType>, TType extends string> =
+	| TEvent['type']
+	| TEvent
+
+export type TransitionConfig<
+	TState extends string | number | symbol,
+	TGuard extends string | undefined,
+	TAction extends string | undefined
+> = {
+	target: TState
+	cond: NonNullable<TGuard>
+	actions?: NonNullable<TAction> | NonNullable<TAction>[]
+}
 
 export type Transition<
-	S extends string,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
-> = {
-	target: S
-	cond?: NonNullable<G>
-	actions?: NonNullable<A>[]
-}
+	TState extends string | number | symbol,
+	TGuard extends string | undefined,
+	TAction extends string | undefined
+> =
+	| TState
+	| TransitionConfig<TState, TGuard, TAction>
+	| TransitionConfig<TState, TGuard, TAction>[]
 
 export type TransitionMap<
-	S extends string,
-	E extends string,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
-> = Partial<Record<E | '', Transition<S, G, A> | Transition<S, G, A>[]>>
+	TState extends string | number | symbol,
+	TEvent extends string,
+	TGuard extends string | undefined,
+	TAction extends string | undefined
+> = Partial<Record<TEvent | '', Transition<TState, TGuard, TAction>>>
 
 export type GuardMap<
 	C extends {},
 	S extends string,
-	G extends string | undefined = undefined
+	E extends Event<ET | '', EP>,
+	G extends string | undefined = undefined,
+	ET extends string = string,
+	EP extends {} | undefined = {}
 > = G extends undefined
 	? undefined
-	: Record<NonNullable<G>, (context: C, currentState: S) => boolean>
+	: Record<
+			NonNullable<G>,
+			(context: C, currentState: S, event: E) => Promise<boolean>
+	  >
 
 export type ActionFn<
 	C extends {},
@@ -49,49 +68,85 @@ export type ActionMap<
 	? undefined
 	: Record<NonNullable<A>, ActionFn<C, S, E, ET, EP>>
 
-export type StateData<
-	S extends string,
-	E extends string,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
+type StateSchemaMap<T> = T extends object ? StateSchema : {}
+export type StateSchema = {
+	[key: string]: StateSchemaMap<{}>
+}
+
+const state: StateSchema = {
+	ok: { dok: {} },
+	pk: {}
+}
+
+type SSS = State<typeof state>
+
+// https://github.com/Microsoft/TypeScript/issues/31192#issuecomment-488391189
+type ObjKeyof<T> = T extends object ? keyof T : never
+type KeyofKeyof<T> = ObjKeyof<T> | { [K in keyof T]: ObjKeyof<T[K]> }[keyof T]
+type Lookup<T, K> = T extends any ? (K extends keyof T ? T[K] : never) : never
+type SimpleFlatten<T> = T extends object
+	? {
+			[K in KeyofKeyof<T>]:
+				| Exclude<K extends keyof T ? T[K] : never, object>
+				| { [P in keyof T]: Lookup<T[P], K> }[keyof T]
+	  }
+	: T
+type NestedFlatten<T> = SimpleFlatten<
+	SimpleFlatten<SimpleFlatten<SimpleFlatten<SimpleFlatten<T>>>>
+>
+export type State<TStateSchema extends StateSchema> = keyof NestedFlatten<
+	TStateSchema
+>
+
+type StateNode<
+	TStateSchema extends StateSchema,
+	TEvent extends string,
+	TGuard extends string | undefined = undefined,
+	TAction extends string | undefined = undefined,
+	TState = State<TStateSchema>
 > = {
-	on?: TransitionMap<S, E, G, A>
-	entry?: NonNullable<A>[]
-	exit?: NonNullable<A>[]
+	initial: TState
+	states: TStateSchema extends never
+		? never
+		: {
+				[K in State<TStateSchema>]: StateNode<
+					TStateSchema[K],
+					TEvent,
+					TGuard,
+					TAction
+				>
+		  }
+	on?: TransitionMap<TState, TEvent, TGuard, TAction>
+	entry?: NonNullable<TAction>[]
+	exit?: NonNullable<TAction>[]
 	type?: 'default' | 'final'
 }
 
-export interface StateSchema {
-	[key: string]: StateSchema | {}
-}
-
 export type Machine<
-	S extends string,
-	E extends string,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined
+	TStateSchema extends StateSchema,
+	TEvent extends string,
+	TGuard extends string | undefined = undefined,
+	TAction extends string | undefined = undefined
 > = {
 	id: string
-	initial: S
-	states: Record<S, StateData<S, E, G, A> | Machine<S, E, G, A>>
-	on?: TransitionMap<S, E, G, A>
-	entry?: NonNullable<A>[]
-	exit?: NonNullable<A>[]
-}
+	states: Record<
+		TState,
+		| StateData<TState, TEvent, TGuard, TAction>
+		| Machine<TState, TEvent, TGuard, TAction>
+	>
+} & StateNode<TStateSchema, TEvent, TGuard, TAction>
 
 export type ServiceOptions<
-	C extends {},
-	S extends string,
-	E extends Event<ET | '', EP>,
-	G extends string | undefined = undefined,
-	A extends string | undefined = undefined,
-	ET extends string = string,
-	EP extends {} | undefined = undefined
+	TContext extends {},
+	TStateSchema extends StateSchema,
+	TEventObject extends EventObject,
+	TGuardMap extends GuardMap | undefined = undefined,
+	TActionMap extends ActionMap | undefined = undefined
 > = {
 	machine: Machine<S, ET, G, A>
 	context: C
 	initialState?: S
-	guards: GuardMap<C, S, G>
+	guards: GuardMap<C, S, E, G, ET, EP>
 	actions: ActionMap<C, S, E, A, ET, EP>
 }
 
@@ -107,6 +162,6 @@ export type Service<
 	machine: Machine<S, ET, G, A>
 	context: C
 	currentState: S
-	guards: GuardMap<C, S, G>
+	guards: GuardMap<C, S, E, G, ET, EP>
 	actions: ActionMap<C, S, E, A, ET, EP>
 }
