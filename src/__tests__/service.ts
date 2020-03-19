@@ -1,19 +1,17 @@
 import { createService, sendEvent, EventError } from '../service'
-import { Machine, GuardMap, ActionMap, EventWithPayload, State } from '../types'
+import { Machine, GuardMap, ActionMap, State } from '../types'
 
 describe('createService', () => {
 	type SimpleEvents = 'complete'
-	type CustomEvent = EventWithPayload<{ counter: number }>
-	type CustomEvents = CustomEvent
+	type CustomEvents = { type: 'custom' }
 	type Event = { type: SimpleEvents } | CustomEvents
 
-	const schema = {
-		new: {},
-		done: {}
+	type Schema = {
+		new: null
+		done: null
 	}
-	type StateSchema = typeof schema
 
-	const machine: Machine<StateSchema, Event['type']> = {
+	const machine: Machine<Schema, Event['type'], undefined, undefined> = {
 		id: 'test',
 		initial: 'new',
 		states: {
@@ -24,7 +22,12 @@ describe('createService', () => {
 	const context: {} = {}
 
 	test('it creates simple service', () => {
-		const service = createService({ machine, context })
+		const service = createService<{}, Event, Schema, undefined, undefined>({
+			machine,
+			context,
+			guards: undefined,
+			actions: undefined
+		})
 		expect(service).toEqual({
 			machine,
 			context,
@@ -33,10 +36,12 @@ describe('createService', () => {
 	})
 
 	test('it creates service at state', () => {
-		const service = createService({
+		const service = createService<{}, Event, Schema, undefined, undefined>({
 			machine,
 			context,
-			initialState: 'done'
+			initialState: 'done',
+			guards: undefined,
+			actions: undefined
 		})
 		expect(service).toEqual({
 			machine,
@@ -49,10 +54,10 @@ describe('createService', () => {
 
 	test('it creates service with guards', () => {
 		type Guard = 'applyGuard'
-		const guards: GuardMap<{}, State<StateSchema>, Event['type']> = {
-			applyGuard: () => true
+		const guards: GuardMap<{}, Event, State<Schema>, Guard> = {
+			applyGuard: () => Promise.resolve(true)
 		}
-		const guardMachine: Machine<State, Event['type'], keyof guards> = {
+		const guardMachine: Machine<Schema, Event['type'], Guard, undefined> = {
 			id: 'test',
 			initial: 'new',
 			states: {
@@ -60,10 +65,11 @@ describe('createService', () => {
 				done: {}
 			}
 		}
-		const service = createService({
+		const service = createService<{}, Event, Schema, Guard, undefined>({
 			machine: guardMachine,
 			context,
-			guards
+			guards,
+			actions: undefined
 		})
 		expect(service).toEqual({
 			machine,
@@ -76,14 +82,14 @@ describe('createService', () => {
 
 	test('it creates service with actions', () => {
 		type Action = 'applyAction'
-		const actions: ActionMap<{}, State<StateSchema>, Event['type']> = {
+		const actions: ActionMap<{}, Event, State<Schema>, Action> = {
 			applyAction: ({}) => Promise.resolve({})
 		}
 		const actionMachine: Machine<
-			State,
+			Schema,
 			Event['type'],
 			undefined,
-			keyof actions
+			Action
 		> = {
 			id: 'test',
 			initial: 'new',
@@ -92,10 +98,11 @@ describe('createService', () => {
 				done: {}
 			}
 		}
-		const service = createService({
+		const service = createService<{}, Event, Schema, undefined, Action>({
 			machine: actionMachine,
 			context,
-			actions
+			actions,
+			guards: undefined
 		})
 		expect(service).toEqual({
 			machine,
@@ -109,26 +116,25 @@ describe('createService', () => {
 
 describe('sendEvent', () => {
 	type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
-	type CustomEvent = EventWithPayload<{ counter: number }>
-	type CustomEvents = CustomEvent
+	type CustomEvents = { type: 'addPayload'; payload: { counter: number } }
 	type Event = { type: SimpleEvents } | CustomEvents
 	type Guard = 'canDo'
 	type Action = 'set' | 'inc' | 'delete' | 'fail' | 'globSet'
 
-	const schema = {
-		new: {},
-		state1: {},
-		state2: {},
-		state3: {},
-		state4: {},
-		state5: {},
-		state6: {},
-		state7: {},
-		state8: {},
-		done: {}
+	type Schema = {
+		new: null
+		state1: null
+		state2: null
+		state3: null
+		state4: null
+		state5: null
+		state6: null
+		state7: null
+		state8: null
+		done: null
 	}
 
-	const machine: Machine<typeof schema, Event['type'], Guard, Action> = {
+	const machine: Machine<Schema, Event['type'], Guard, Action> = {
 		id: 'test',
 		initial: 'new',
 		states: {
@@ -143,7 +149,8 @@ describe('sendEvent', () => {
 			},
 			state1: {
 				on: {
-					do: { target: 'state2' },
+					complete: { target: 'state3' },
+					do: 'state2',
 					back: { target: 'new', cond: 'canDo' }
 				}
 			},
@@ -184,10 +191,10 @@ describe('sendEvent', () => {
 		counter?: number
 	}
 	const context: Context = {}
-	const guards: GuardMap<Context, State, Guard> = {
-		canDo: ({ counter }) => counter === 1
+	const guards: GuardMap<Context, Event, State<Schema>, Guard> = {
+		canDo: ({ counter }) => Promise.resolve(counter === 1)
 	}
-	const actions: ActionMap<Context, State, Event, Action> = {
+	const actions: ActionMap<Context, Event, State<Schema>, Action> = {
 		set: (context, state, event) => {
 			if (state === 'done' && event.type === 'back') {
 				return Promise.resolve({ counter: 1 })
@@ -232,10 +239,10 @@ describe('sendEvent', () => {
 	})
 
 	test('it stays at state without transition', async () => {
-		const service = createService({
+		const service = createService<Context, Event, Schema, Guard, Action>({
 			...baseService,
 			machine: {
-				...baseService.machine,
+				...(baseService.machine as any),
 				on: undefined
 			}
 		})

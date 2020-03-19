@@ -1,11 +1,14 @@
-export type EventObject = {
-	type: string
+export type EventObject<TType> = {
+	type: TType
 }
-export type EventObjectWithPayload<TPayload> = EventObject & {
+export type EventObjectWithPayload<TPayload> = EventObject<string> & {
 	payload: TPayload
 }
-export type AnyEventObject = EventObject | EventObjectWithPayload<any>
-export type Event<TEvent extends EventObject> = TEvent['type'] | TEvent
+export type AnyEventObject = EventObject<string> | EventObjectWithPayload<any>
+export type Event<TEvent extends EventObject<string>> =
+	| ''
+	| TEvent['type']
+	| TEvent
 
 export type TransitionConfig<
 	TState extends string | number | symbol,
@@ -13,7 +16,7 @@ export type TransitionConfig<
 	TAction extends string | number | symbol | undefined
 > = {
 	target: TState
-	cond: NonNullable<TGuard>
+	cond?: NonNullable<TGuard>
 	actions?: NonNullable<TAction> | NonNullable<TAction>[]
 }
 
@@ -35,31 +38,35 @@ export type TransitionMap<
 
 export type GuardMap<
 	TContext extends {},
-	TEventObject extends EventObject,
+	TEventObject extends EventObject<string>,
 	TState extends string | number | symbol,
-	TGuard extends string
-> = Record<
-	TGuard,
-	(
-		context: TContext,
-		currentState: TState,
-		event: TEventObject
-	) => Promise<boolean>
->
+	TGuard extends string | number | symbol | undefined
+> = TGuard extends undefined
+	? undefined
+	: Record<
+			NonNullable<TGuard>,
+			(
+				context: TContext,
+				currentState: TState,
+				event: TEventObject
+			) => Promise<boolean>
+	  >
 
 export type ActionMap<
 	TContext extends {},
-	TEventObject extends EventObject,
+	TEventObject extends EventObject<string>,
 	TState extends string | number | symbol,
-	TAction extends string
-> = Record<
-	TAction,
-	(
-		context: TContext,
-		currentState: TState,
-		event: TEventObject
-	) => Promise<Partial<TContext>>
->
+	TAction extends string | number | symbol | undefined
+> = TAction extends undefined
+	? undefined
+	: Record<
+			NonNullable<TAction>,
+			(
+				context: TContext,
+				currentState: TState,
+				event: TEventObject
+			) => Promise<Partial<TContext>>
+	  >
 
 export interface StateSchema {
 	[key: string]: StateSchema | null
@@ -81,7 +88,7 @@ export type State<TStateSchema extends StateSchema> = keyof NestedFlatten<
 	TStateSchema
 >
 
-type LeafStateNode<
+export type LeafStateNode<
 	TRootStateSchema extends StateSchema,
 	TEvent extends string,
 	TGuard extends string | number | symbol | undefined,
@@ -93,7 +100,7 @@ type LeafStateNode<
 	type?: 'default' | 'final'
 }
 
-type StateNode<
+export type StateNode<
 	TRootStateSchema extends StateSchema,
 	TStateSchema extends StateSchema,
 	TEvent extends string,
@@ -117,33 +124,22 @@ type StateNode<
 export type Machine<
 	TStateSchema extends StateSchema,
 	TEvent extends string,
-	TGuard extends string | number | symbol | undefined = undefined,
-	TAction extends string | number | symbol | undefined = undefined
+	TGuard extends string | number | symbol | undefined,
+	TAction extends string | number | symbol | undefined
 > = {
 	id: string
 } & StateNode<TStateSchema, TStateSchema, TEvent | '', TGuard, TAction>
 
 export type Service<
 	TContext extends {},
-	TEventObject extends EventObject,
+	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema,
-	TGuard extends string,
-	TAction extends string
+	TGuard extends string | number | symbol | undefined,
+	TAction extends string | number | symbol | undefined
 > = {
-	machine: Machine<TStateSchema, TEventObject['type']>
+	machine: Machine<TStateSchema, TEventObject['type'], TGuard, TAction>
 	context: TContext
 	currentState: State<TStateSchema>
 	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
 	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
 }
-
-export type ServiceConfig<
-	TContext extends {},
-	TEventObject extends EventObject,
-	TStateSchema extends StateSchema,
-	TGuard extends string,
-	TAction extends string
-> = Omit<
-	Service<TContext, TEventObject, TStateSchema, TGuard, TAction>,
-	'currentState'
-> & { initialState?: State<TStateSchema> }
