@@ -84,9 +84,19 @@ type SimpleFlatten<T> = T extends object
 	  }
 	: T
 type NestedFlatten<T> = SimpleFlatten<SimpleFlatten<SimpleFlatten<T>>>
-export type State<TStateSchema extends StateSchema> = keyof NestedFlatten<
-	TStateSchema
->
+// mine
+type ObjKeyOf<T> = T extends object ? keyof T : never
+type NestedObjKeyOf<T> = {
+	[K in keyof T]: T[K] extends object ? ObjKeyOf<T[K]> : never
+}[keyof T]
+type NestedKeyOf<T> =
+	| ObjKeyOf<T>
+	| NestedObjKeyOf<T>
+	| {
+			[K in keyof T]: NestedObjKeyOf<T[K]>
+	  }[keyof T]
+// Handles 3 levels
+export type State<TStateSchema extends StateSchema> = NestedKeyOf<TStateSchema>
 
 export type LeafStateNode<
 	TRootStateSchema extends StateSchema,
@@ -121,6 +131,23 @@ export type StateNode<
 	}
 }
 
+type LeafStatePath<TStateSchema extends StateSchema> = keyof TStateSchema
+type NestedStatePath2<TStateSchema extends StateSchema> = {
+	[K in keyof TStateSchema]: TStateSchema[K] extends null
+		? K
+		: Record<K, LeafStatePath<NonNullable<TStateSchema[K]>>>
+}[keyof TStateSchema]
+type NestedStatePath<TStateSchema extends StateSchema> = {
+	[K in keyof TStateSchema]: TStateSchema[K] extends null
+		? K
+		: Record<K, NestedStatePath2<NonNullable<TStateSchema[K]>>>
+}[keyof TStateSchema]
+export type CurrentState<TStateSchema extends StateSchema> = {
+	[K in keyof TStateSchema]: TStateSchema[K] extends null
+		? K
+		: Record<K, NestedStatePath<NonNullable<TStateSchema[K]>>>
+}[keyof TStateSchema]
+
 export type Machine<
 	TStateSchema extends StateSchema,
 	TEvent extends string,
@@ -139,7 +166,7 @@ export type Service<
 > = {
 	machine: Machine<TStateSchema, TEventObject['type'], TGuard, TAction>
 	context: TContext
-	currentState: State<TStateSchema>
+	currentState: CurrentState<TStateSchema>
 	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
 	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
 }

@@ -10,7 +10,8 @@ import {
 	TransitionConfig,
 	Machine,
 	GuardMap,
-	ActionMap
+	ActionMap,
+	CurrentState
 } from './types'
 
 // const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
@@ -23,6 +24,27 @@ export class EventError extends Error {
 		super(`Error in action ${action} while performing ${event}: ${message}`)
 		this.name = 'EventError'
 	}
+}
+
+export const fromStatePath = <TStateSchema extends StateSchema>(
+	path: string | number | symbol
+): CurrentState<TStateSchema> => {
+	return path
+		.toString()
+		.split('.')
+		.reverse()
+		.reduce<object | string | undefined>(
+			(acc, curr) => (acc === undefined ? curr : { [curr]: acc }),
+			undefined
+		) as CurrentState<TStateSchema>
+}
+
+export const toStatePath = <TStateSchema extends StateSchema>(
+	node: CurrentState<TStateSchema>
+): string => {
+	return typeof node === 'string'
+		? node
+		: node + '.' + toStatePath((Object.keys(node) as any[])[0])
 }
 
 export function createService<
@@ -43,7 +65,9 @@ export function createService<
 		context: options.context,
 		guards: options.guards,
 		actions: options.actions,
-		currentState: options.initialState ?? options.machine.initial
+		currentState: options.initialState
+			? fromStatePath(options.initialState)
+			: fromStatePath(options.machine.initial)
 	}
 }
 
@@ -62,11 +86,11 @@ export const sendEvent = async <
 	const eventObject: TEventObject =
 		typeof event === 'string' ? ({ type: event } as any) : event
 
-	const statePath = currentState.toString().split('.') as State<
+	const statePath = toStatePath(currentState).split('.') as State<
 		TStateSchema
 	>[]
 
-	const getMachineLevel = (
+	const getLeafNode = (
 		node:
 			| StateNode<
 					TStateSchema,
@@ -88,7 +112,7 @@ export const sendEvent = async <
 		}
 	}
 
-	const stateNode = statePath.reduce(getMachineLevel, machine)
+	const stateNode = statePath.reduce(getLeafNode, machine)
 
 	const getTransitionFromNode = (
 		node:
@@ -131,7 +155,11 @@ export const sendEvent = async <
 			return t
 		} else if (curr.cond && guards) {
 			const guard = guards[curr.cond]
-			return (await guard(context, currentState, eventObject))
+			return (await guard(
+				context,
+				statePath[statePath.length - 1],
+				eventObject
+			))
 				? curr
 				: null
 		} else {
@@ -139,6 +167,17 @@ export const sendEvent = async <
 		}
 	}, Promise.resolve(null))
 	if (transition === null) return service
+
+	// const getTransitionNode = statePath
+	// 	.slice(0, -1)
+	// 	.reverse()
+	// 	.reduce(
+	// 		(acc, curr) => {
+
+	// 			return acc
+	// 		},
+	// 		{ actions: [] }
+	// 	)
 
 	const applyAction = (state: State<TStateSchema>) => async (
 		acc: Promise<TContext>,

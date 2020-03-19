@@ -33,7 +33,6 @@ const machine: Machine<Schema, Event['type'], Guard, Action> = {
 		state1: {
 			on: {
 				complete: { target: 'state3' },
-				do: 'state2',
 				back: { target: 'new', cond: 'canDo' }
 			}
 		},
