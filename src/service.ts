@@ -121,8 +121,6 @@ export const sendEvent = async <
 		}
 	}
 
-	const stateNode = statePath.reduce(getNode, machine)
-
 	const getTransitionFromNode = (
 		node:
 			| LeafStateNode<TStateSchema, TEventObject['type'], TGuard, TAction>
@@ -137,22 +135,26 @@ export const sendEvent = async <
 			: node
 	}
 
-	type PerformTransaction =
-		| Transition<State<TStateSchema>, TGuard, TAction>
-		| undefined
-	const perform: PerformTransaction = getTransitionFromNode(stateNode)
-	if (perform === undefined) return service
+	const getTransitions = (
+		path: State<TStateSchema>[],
+		i: number
+	): TransitionConfig<State<TStateSchema>, TGuard, TAction>[] => {
+		if (i > path.length) return []
 
-	const performTransitions: TransitionConfig<
-		State<TStateSchema>,
-		TGuard,
-		TAction
-	>[] = isArray(perform)
-		? perform
-		: typeof perform === 'object'
-		? [perform]
-		: [{ target: perform } as any]
+		const node = path.slice(0, i).reduce(getNode, machine)
+		const t = getTransitionFromNode(node)
+		const config: TransitionConfig<State<TStateSchema>, TGuard, TAction>[] =
+			t === undefined
+				? []
+				: isArray(t)
+				? t
+				: typeof t === 'object'
+				? [t]
+				: [{ target: t } as any]
+		return [...getTransitions(path, i + 1), ...config]
+	}
 
+	const performTransitions = getTransitions(statePath, 0)
 	// Get first transition that passes guard
 	const transition = await performTransitions.reduce<
 		Promise<TransitionConfig<State<TStateSchema>, TGuard, TAction> | null>
