@@ -44,7 +44,9 @@ export const toStatePath = <TStateSchema extends StateSchema>(
 ): string => {
 	return typeof node === 'string'
 		? node
-		: node + '.' + toStatePath((Object.keys(node) as any[])[0])
+		: (Object.keys(node) as any[])[0] +
+				'.' +
+				toStatePath((Object.values(node) as any[])[0])
 }
 
 export function createService<
@@ -56,7 +58,7 @@ export function createService<
 >(options: {
 	machine: Machine<TStateSchema, TEventObject['type'], TGuard, TAction>
 	context: TContext
-	initialState?: State<TStateSchema>
+	initialState?: CurrentState<TStateSchema>
 	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
 	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
 }): Service<TContext, TEventObject, TStateSchema, TGuard, TAction> {
@@ -66,7 +68,7 @@ export function createService<
 		guards: options.guards,
 		actions: options.actions,
 		currentState: options.initialState
-			? fromStatePath(options.initialState)
+			? options.initialState
 			: fromStatePath(options.machine.initial)
 	}
 }
@@ -90,7 +92,7 @@ export const sendEvent = async <
 		TStateSchema
 	>[]
 
-	const getLeafNode = (
+	const getNode = (
 		node:
 			| StateNode<
 					TStateSchema,
@@ -103,6 +105,13 @@ export const sendEvent = async <
 			| undefined,
 		currState: State<TStateSchema>
 	):
+		| StateNode<
+				TStateSchema,
+				TStateSchema,
+				TEventObject['type'],
+				TGuard,
+				TAction
+		  >
 		| LeafStateNode<TStateSchema, TEventObject['type'], TGuard, TAction>
 		| undefined => {
 		if (node !== undefined && 'states' in node) {
@@ -112,7 +121,7 @@ export const sendEvent = async <
 		}
 	}
 
-	const stateNode = statePath.reduce(getLeafNode, machine)
+	const stateNode = statePath.reduce(getNode, machine)
 
 	const getTransitionFromNode = (
 		node:
@@ -131,9 +140,7 @@ export const sendEvent = async <
 	type PerformTransaction =
 		| Transition<State<TStateSchema>, TGuard, TAction>
 		| undefined
-	let perform: PerformTransaction = getTransitionFromNode(stateNode)
-	if (perform === undefined)
-		perform = machine.on?.[eventObject.type as TEventObject['type']]
+	const perform: PerformTransaction = getTransitionFromNode(stateNode)
 	if (perform === undefined) return service
 
 	const performTransitions: TransitionConfig<
@@ -168,16 +175,61 @@ export const sendEvent = async <
 	}, Promise.resolve(null))
 	if (transition === null) return service
 
-	// const getTransitionNode = statePath
-	// 	.slice(0, -1)
-	// 	.reverse()
-	// 	.reduce(
-	// 		(acc, curr) => {
+	const getInitialPath = (
+		path: State<TStateSchema>[]
+	): State<TStateSchema>[] => {
+		const node = path.reduce(getNode, machine)
+		if (node && 'initial' in node) {
+			const newPath = [...path, node.initial]
+			return getInitialPath(newPath)
+		}
+		return path
+	}
 
-	// 			return acc
-	// 		},
-	// 		{ actions: [] }
-	// 	)
+	const target = transition.target
+	let targetPath = statePath.slice(0, -1)
+	while (true) {
+		const node = targetPath.reduce(getNode, machine)
+		if (node && 'states' in node && node.states[target as any]) {
+			targetPath = getInitialPath([...targetPath, target])
+			break
+		}
+
+		if (targetPath.length === 0) break
+		targetPath = targetPath.slice(0, -1)
+	}
+
+	const leafState = statePath[statePath.length - 1]
+	const tActions = Array.isArray(transition.actions)
+		? transition.actions
+		: transition.actions === undefined
+		? []
+		: [transition.actions]
+	const getExitActions = (
+		path: State<TStateSchema>[],
+		i: number
+	): [NonNullable<TAction>[], State<TStateSchema>][] => {
+		if (i > path.length) return []
+
+		const node = path.slice(0, i).reduce(getNode, machine)
+		const exitAction = node?.exit ?? []
+		return [[exitAction, leafState], ...getExitActions(path, i + 1)]
+	}
+	const getEntryActions = (
+		path: State<TStateSchema>[],
+		i: number
+	): [NonNullable<TAction>[], State<TStateSchema>][] => {
+		if (i > path.length) return []
+
+		const node = path.slice(0, i).reduce(getNode, machine)
+		const entryActions = node?.entry ?? []
+		return [...getEntryActions(path, i + 1), [entryActions, target]]
+	}
+	const allActions: [NonNullable<TAction>[], State<TStateSchema>][] = [
+		...getExitActions(statePath, 0),
+		[tActions, leafState],
+		...getEntryActions(targetPath, 0)
+	]
 
 	const applyAction = (state: State<TStateSchema>) => async (
 		acc: Promise<TContext>,
@@ -208,29 +260,14 @@ export const sendEvent = async <
 	}
 
 	// Update context using actions
-	const tActions = Array.isArray(transition.actions)
-		? transition.actions
-		: transition.actions === undefined
-		? undefined
-		: [transition.actions]
-	const actionData: [
-		NonNullable<TAction>[] | undefined,
-		State<TStateSchema>
-	][] = [
-		[machine.exit, currentState],
-		[machine.states[currentState.toString()].exit, currentState],
-		[tActions, currentState],
-		[machine.states[transition.target.toString()].entry, transition.target],
-		[machine.entry, transition.target]
-	]
-	const newContext = await actionData.reduce(
+	const newContext = await allActions.reduce(
 		async (acc, [actions, state]) =>
 			await applyActions(actions, state, await acc),
 		Promise.resolve(context)
 	)
 
 	// Successfull transition
-	const newState = transition.target
+	const newState = fromStatePath<TStateSchema>(targetPath.join('.'))
 	let newService = {
 		...service,
 		context: newContext,

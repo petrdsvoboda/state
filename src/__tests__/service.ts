@@ -414,87 +414,115 @@ describe('sendEvent', () => {
 			currentState: 'done'
 		} as typeof service)
 	})
+})
 
-	describe('hierarchical state', async () => {
-		type SimpleEvents = 'do' | 'back'
-		type Event = { type: SimpleEvents }
-		type Guard = 'canDo'
-		type Action = 'set' | 'inc' | 'delete'
+describe('hierarchical state', () => {
+	type SimpleEvents = 'do' | 'back'
+	type Event = { type: SimpleEvents }
+	type Guard = 'canDo'
+	type Action = 'set' | 'inc' | 'delete'
 
-		type Schema = {
-			s: { s1: null; s2: null }
-			t: { t1: null; t2: null }
-			u: null
-		}
+	type Schema = {
+		s: { s1: null; s2: null }
+		t: { t1: null; t2: null }
+		u: null
+	}
 
-		const machine: Machine<Schema, Event['type'], Guard, Action> = {
-			id: 'hierarchical',
-			initial: 's',
-			states: {
-				s: {
-					initial: 's1',
-					states: {
-						s1: {},
-						s2: {}
-					},
-					on: {
-						do: 't'
-					}
+	const machine: Machine<Schema, Event['type'], Guard, Action> = {
+		id: 'hierarchical',
+		initial: 's',
+		states: {
+			s: {
+				initial: 's1',
+				states: {
+					s1: {},
+					s2: { on: { do: 'u' } }
 				},
-				t: {
-					initial: 't1',
-					states: {
-						t1: {},
-						t2: {}
-					},
-					on: {
-						do: 't'
-					}
-				},
-				u: {}
-			},
-			on: { do: { target: 's2' } },
-			entry: ['set'],
-			exit: ['set']
-		}
-		type Context = {
-			counter: number
-		}
-		const context: Context = { counter: 0 }
-		const guards: GuardMap<Context, Event, State<Schema>, Guard> = {
-			canDo: ({ counter }) => Promise.resolve(counter === 1)
-		}
-		const actions: ActionMap<Context, Event, State<Schema>, Action> = {
-			set: (context, state, event) => {
-				if (state === 's' && event.type === 'back') {
-					return Promise.resolve({ counter: 1 })
-				} else if (state === 's') {
-					return Promise.resolve(context)
-				} else {
-					return Promise.resolve({
-						counter: context.counter + 1
-					})
+				on: {
+					do: 't'
 				}
 			},
-			inc: ({ counter }) => Promise.resolve({ counter: counter + 1 }),
-			delete: () => Promise.resolve({ counter: 0 })
-		}
-		const baseService = createService({
-			machine,
-			context,
-			guards,
-			actions
-		})
+			t: {
+				initial: 't1',
+				states: {
+					t1: {},
+					t2: { on: { do: 's' } }
+				},
+				on: {
+					do: 't'
+				}
+			},
+			u: {}
+		},
+		on: { do: { target: 's2' } },
+		entry: ['set'],
+		exit: ['set']
+	}
+	type Context = {
+		counter: number
+	}
+	const context: Context = { counter: 0 }
+	const guards: GuardMap<Context, Event, State<Schema>, Guard> = {
+		canDo: ({ counter }) => Promise.resolve(counter === 1)
+	}
+	const actions: ActionMap<Context, Event, State<Schema>, Action> = {
+		set: (context, state, event) => {
+			if (state === 's' && event.type === 'back') {
+				return Promise.resolve({ counter: 1 })
+			} else if (state === 's') {
+				return Promise.resolve(context)
+			} else {
+				return Promise.resolve({
+					counter: context.counter + 1
+				})
+			}
+		},
+		inc: ({ counter }) => Promise.resolve({ counter: counter + 1 }),
+		delete: () => Promise.resolve({ counter: 0 })
+	}
+	const baseService = createService({
+		machine,
+		context,
+		guards,
+		actions
+	})
+
+	it('starts in nested state', async () => {
 		const service = createService({
 			...baseService,
 			context: { counter: 1 },
-			initialState: 's',
-			actions: undefined as any
+			initialState: { s: 's1' }
+		})
+
+		expect(service).toEqual({
+			...service,
+			currentState: { s: 's1' }
+		} as typeof service)
+	})
+
+	it('transitions to parent', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: { s: 's2' }
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
 			currentState: 'u'
+		} as typeof service)
+	})
+
+	it('transitions to inner state', async () => {
+		const service = createService({
+			...baseService,
+			context: { counter: 1 },
+			initialState: { t: 't2' }
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: { s: 's1' }
 		} as typeof service)
 	})
 })
