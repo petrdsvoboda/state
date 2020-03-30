@@ -26,8 +26,9 @@ export type Transition<
 	TAction extends string | number | symbol | undefined
 > =
 	| TState
-	| TransitionConfig<TState, TGuard, TAction>
-	| TransitionConfig<TState, TGuard, TAction>[]
+	| '$history'
+	| TransitionConfig<TState | '$history', TGuard, TAction>
+	| TransitionConfig<TState | '$history', TGuard, TAction>[]
 
 export type TransitionMap<
 	TState extends string | number | symbol,
@@ -36,6 +37,15 @@ export type TransitionMap<
 	TAction extends string | number | symbol | undefined
 > = Partial<Record<TEvent | '', Transition<TState, TGuard, TAction>>>
 
+export type GuardFn<
+	TContext extends {},
+	TEventObject extends EventObject<string>,
+	TState extends string | number | symbol
+> = (
+	context: TContext,
+	currentState: TState,
+	event: TEventObject
+) => Promise<boolean>
 export type GuardMap<
 	TContext extends {},
 	TEventObject extends EventObject<string>,
@@ -43,15 +53,17 @@ export type GuardMap<
 	TGuard extends string | number | symbol | undefined
 > = TGuard extends undefined
 	? undefined
-	: Record<
-			NonNullable<TGuard>,
-			(
-				context: TContext,
-				currentState: TState,
-				event: TEventObject
-			) => Promise<boolean>
-	  >
+	: Record<NonNullable<TGuard>, GuardFn<TContext, TEventObject, TState>>
 
+export type ActionFn<
+	TContext extends {},
+	TEventObject extends EventObject<string>,
+	TState extends string | number | symbol
+> = (
+	context: TContext,
+	currentState: TState,
+	event: TEventObject
+) => Promise<Partial<TContext>>
 export type ActionMap<
 	TContext extends {},
 	TEventObject extends EventObject<string>,
@@ -59,14 +71,7 @@ export type ActionMap<
 	TAction extends string | number | symbol | undefined
 > = TAction extends undefined
 	? undefined
-	: Record<
-			NonNullable<TAction>,
-			(
-				context: TContext,
-				currentState: TState,
-				event: TEventObject
-			) => Promise<Partial<TContext>>
-	  >
+	: Record<NonNullable<TAction>, ActionFn<TContext, TEventObject, TState>>
 
 export interface StateSchema {
 	[key: string]: StateSchema | null
@@ -169,4 +174,5 @@ export type Service<
 	currentState: CurrentState<TStateSchema>
 	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
 	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
+	history: CurrentState<TStateSchema>[]
 }

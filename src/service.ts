@@ -11,7 +11,9 @@ import {
 	Machine,
 	GuardMap,
 	ActionMap,
-	CurrentState
+	CurrentState,
+	GuardFn,
+	ActionFn
 } from './types'
 
 // const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
@@ -61,12 +63,14 @@ export function createService<
 	initialState?: CurrentState<TStateSchema>
 	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
 	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
+	history?: CurrentState<TStateSchema>[]
 }): Service<TContext, TEventObject, TStateSchema, TGuard, TAction> {
 	return {
 		machine: options.machine,
 		context: options.context,
 		guards: options.guards,
 		actions: options.actions,
+		history: options.history ?? [],
 		currentState: options.initialState
 			? options.initialState
 			: fromStatePath(options.machine.initial)
@@ -77,13 +81,13 @@ export const sendEvent = async <
 	TContext extends {},
 	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema,
-	TGuard extends string,
-	TAction extends string
+	TGuard extends string | number | symbol | undefined,
+	TAction extends string | number | symbol | undefined
 >(
 	service: Service<TContext, TEventObject, TStateSchema, TGuard, TAction>,
 	event: Event<TEventObject>
 ): Promise<Service<TContext, TEventObject, TStateSchema, TGuard, TAction>> => {
-	const { machine, context, currentState, guards, actions } = service
+	const { machine, context, currentState, guards, actions, history } = service
 	// Fix types
 	const eventObject: TEventObject =
 		typeof event === 'string' ? ({ type: event } as any) : event
@@ -163,7 +167,11 @@ export const sendEvent = async <
 		if (t !== null) {
 			return t
 		} else if (curr.cond && guards) {
-			const guard = guards[curr.cond]
+			const guard = (guards as any)[curr.cond] as GuardFn<
+				TContext,
+				TEventObject,
+				State<TStateSchema>
+			>
 			return (await guard(
 				context,
 				statePath[statePath.length - 1],
@@ -188,20 +196,36 @@ export const sendEvent = async <
 		return path
 	}
 
-	const target = transition.target
-	let targetPath = statePath.slice(0, -1)
-	while (true) {
-		const node = targetPath.reduce(getNode, machine)
-		if (node && 'states' in node && node.states[target as any]) {
-			targetPath = getInitialPath([...targetPath, target])
-			break
-		}
+	let newHistory = history
+	let targetPath: State<TStateSchema>[]
+	if (transition.target === '$history') {
+		const historyState = [...newHistory].pop()
 
-		if (targetPath.length === 0) break
-		targetPath = targetPath.slice(0, -1)
+		if (historyState) {
+			targetPath = toStatePath(historyState).split('.') as State<
+				TStateSchema
+			>[]
+			newHistory = newHistory.slice(0, -1)
+		} else {
+			return service
+		}
+	} else {
+		const target = transition.target
+		targetPath = statePath.slice(0, -1)
+		while (true) {
+			const node = targetPath.reduce(getNode, machine)
+			if (node && 'states' in node && node.states[target as any]) {
+				targetPath = getInitialPath([...targetPath, target])
+				break
+			}
+
+			if (targetPath.length === 0) break
+			targetPath = targetPath.slice(0, -1)
+		}
 	}
 
 	const leafState = statePath[statePath.length - 1]
+	const targetState = targetPath[targetPath.length - 1]
 	const tActions = Array.isArray(transition.actions)
 		? transition.actions
 		: transition.actions === undefined
@@ -225,7 +249,7 @@ export const sendEvent = async <
 
 		const node = path.slice(0, i).reduce(getNode, machine)
 		const entryActions = node?.entry ?? []
-		return [...getEntryActions(path, i + 1), [entryActions, target]]
+		return [...getEntryActions(path, i + 1), [entryActions, targetState]]
 	}
 	const allActions: [NonNullable<TAction>[], State<TStateSchema>][] = [
 		...getExitActions(statePath, 0),
@@ -241,10 +265,14 @@ export const sendEvent = async <
 		if (!actions) return prev
 
 		try {
-			const updatedContext = await actions[curr](prev, state, eventObject)
+			const updatedContext = (await (actions as any)[curr](
+				prev,
+				state,
+				eventObject
+			)) as ActionFn<TContext, TEventObject, State<TStateSchema>>
 			return Object.assign(prev, updatedContext)
 		} catch (err) {
-			throw new EventError(eventObject.type, curr, err)
+			throw new EventError(eventObject.type, curr.toString(), err)
 		}
 	}
 
@@ -273,11 +301,20 @@ export const sendEvent = async <
 	let newService = {
 		...service,
 		context: newContext,
-		currentState: newState
+		currentState: newState,
+		history: newHistory
 	}
 
 	// Apply auto transitions
 	newService = await sendEvent(newService, '')
+
+	if (transition.target !== '$history') {
+		newService.history = [
+			...newService.history.slice(0, newHistory.length),
+			currentState,
+			...newService.history.slice(newHistory.length)
+		]
+	}
 
 	return newService
 }

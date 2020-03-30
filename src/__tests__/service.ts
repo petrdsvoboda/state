@@ -1,5 +1,45 @@
-import { createService, sendEvent, EventError } from '../service'
+import {
+	createService,
+	sendEvent,
+	EventError,
+	fromStatePath,
+	toStatePath
+} from '../service'
 import { Machine, GuardMap, ActionMap, State } from '../types'
+
+describe('fromStatePath', () => {
+	type Schema = {
+		new: null
+		s: { s1: { s2: null } }
+		done: null
+	}
+
+	it('creates from simple path', () => {
+		expect(fromStatePath<Schema>('new')).toEqual('new')
+	})
+
+	it('creates from nested path', () => {
+		expect(fromStatePath<Schema>('s.s1.s2')).toEqual({ s: { s1: 's2' } })
+	})
+})
+
+describe('toStatePath', () => {
+	type Schema = {
+		new: null
+		s: { s1: { s2: null } }
+		done: null
+	}
+
+	it('creates simple path', () => {
+		expect(toStatePath<Schema>('new')).toEqual('new')
+	})
+
+	it('creates nested path', () => {
+		expect(
+			toStatePath<Schema>({ s: { s1: 's2' } })
+		).toEqual('s.s1.s2')
+	})
+})
 
 describe('createService', () => {
 	type SimpleEvents = 'complete'
@@ -31,7 +71,10 @@ describe('createService', () => {
 		expect(service).toEqual({
 			machine,
 			context,
-			currentState: 'new'
+			currentState: 'new',
+			guards: undefined,
+			actions: undefined,
+			history: []
 		} as typeof service)
 	})
 
@@ -48,7 +91,8 @@ describe('createService', () => {
 			context,
 			currentState: 'done',
 			guards: undefined,
-			actions: undefined
+			actions: undefined,
+			history: []
 		} as typeof service)
 	})
 
@@ -76,7 +120,8 @@ describe('createService', () => {
 			context,
 			guards,
 			currentState: 'new',
-			actions: undefined
+			actions: undefined,
+			history: []
 		} as typeof service)
 	})
 
@@ -109,7 +154,8 @@ describe('createService', () => {
 			context,
 			actions,
 			currentState: 'new',
-			guards: undefined
+			guards: undefined,
+			history: []
 		} as typeof service)
 	})
 })
@@ -234,7 +280,8 @@ describe('sendEvent', () => {
 	test('it completes simple transition', async () => {
 		expect(await sendEvent(baseService, 'complete')).toEqual({
 			...baseService,
-			currentState: 'done'
+			currentState: 'done',
+			history: ['new']
 		} as typeof baseService)
 	})
 
@@ -256,7 +303,8 @@ describe('sendEvent', () => {
 		})
 		expect(await sendEvent(service, 'restart')).toEqual({
 			...service,
-			currentState: 'new'
+			currentState: 'new',
+			history: ['state3']
 		} as typeof service)
 	})
 
@@ -268,7 +316,8 @@ describe('sendEvent', () => {
 		expect(await sendEvent(service, '')).toEqual({
 			...service,
 			currentState: 'done',
-			context: { counter: 2 }
+			context: { counter: 2 },
+			history: ['state4', 'state5']
 		} as typeof service)
 	})
 
@@ -279,14 +328,16 @@ describe('sendEvent', () => {
 		})
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
-			currentState: 'state1'
+			currentState: 'state1',
+			history: ['new']
 		} as typeof service)
 	})
 
 	test('it handles failed guards', async () => {
 		expect(await sendEvent(baseService, 'do')).toEqual({
 			...baseService,
-			currentState: 'state2'
+			currentState: 'state2',
+			history: ['new']
 		} as typeof baseService)
 	})
 
@@ -311,7 +362,8 @@ describe('sendEvent', () => {
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
 			currentState: 'state3',
-			context: { counter: 2 }
+			context: { counter: 2 },
+			history: ['state2']
 		} as typeof service)
 	})
 
@@ -329,7 +381,8 @@ describe('sendEvent', () => {
 		).toEqual({
 			...service,
 			currentState: 'state3',
-			context: { counter: 5 }
+			context: { counter: 5 },
+			history: ['state2']
 		} as typeof service)
 	})
 
@@ -355,7 +408,8 @@ describe('sendEvent', () => {
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
 			currentState: 'state7',
-			context: { counter: 2 }
+			context: { counter: 2 },
+			history: ['state6']
 		} as typeof service)
 	})
 
@@ -369,7 +423,8 @@ describe('sendEvent', () => {
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
 			currentState: 'state6',
-			context: { counter: 2 }
+			context: { counter: 2 },
+			history: ['state7']
 		} as typeof service)
 	})
 
@@ -383,7 +438,8 @@ describe('sendEvent', () => {
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
 			currentState: 'done',
-			context: { counter: 2 }
+			context: { counter: 2 },
+			history: ['state8']
 		} as typeof service)
 	})
 
@@ -397,7 +453,8 @@ describe('sendEvent', () => {
 		expect(await sendEvent(service, 'back')).toEqual({
 			...service,
 			currentState: 'done',
-			context: { counter: 2 }
+			context: { counter: 2 },
+			history: ['state8']
 		} as typeof service)
 	})
 
@@ -411,7 +468,8 @@ describe('sendEvent', () => {
 
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
-			currentState: 'done'
+			currentState: 'done',
+			history: ['state8']
 		} as typeof service)
 	})
 })
@@ -509,7 +567,8 @@ describe('hierarchical state', () => {
 
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
-			currentState: 'u'
+			currentState: 'u',
+			history: [{ s: 's2' }]
 		} as typeof service)
 	})
 
@@ -522,7 +581,127 @@ describe('hierarchical state', () => {
 
 		expect(await sendEvent(service, 'do')).toEqual({
 			...service,
-			currentState: { s: 's1' }
+			currentState: { s: 's1' },
+			history: [{ t: 't2' }]
+		} as typeof service)
+	})
+})
+
+describe('history state', () => {
+	type SimpleEvents = 'do' | 'back'
+	type Event = { type: SimpleEvents }
+
+	type Schema = {
+		s1: null
+		s2: null
+		s3: null
+		s4: null
+		s5: null
+		s6: null
+		s7: null
+	}
+
+	const machine: Machine<Schema, Event['type'], undefined, undefined> = {
+		id: 'history',
+		initial: 's1',
+		states: {
+			s1: { on: { do: '$history' } },
+			s2: { on: { '': '$history' } },
+			s3: { on: { '': '$history' } },
+			s5: { on: { '': 's3' } },
+			s4: { on: { do: 's2' } },
+			s6: { on: { do: 's7' } },
+			s7: { on: { '': 's4' } }
+		}
+	}
+	const baseService = createService({
+		machine,
+		context: {},
+		guards: undefined,
+		actions: undefined
+	})
+
+	it('transitions to history', async () => {
+		const service = createService({
+			...baseService,
+			initialState: 's1',
+			history: ['s4']
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's4',
+			history: []
+		} as typeof service)
+	})
+
+	it('transitions to nested history', async () => {
+		const service = createService({
+			...baseService,
+			initialState: 's1',
+			history: ['s4', 's3', 's2']
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's4',
+			history: []
+		} as typeof service)
+	})
+
+	it('auto transitions to nested history', async () => {
+		const service = createService({
+			...baseService,
+			initialState: 's1',
+			history: ['s4', 's5']
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's4',
+			history: ['s5']
+		} as typeof service)
+	})
+
+	it('handles previous history', async () => {
+		const service = createService({
+			...baseService,
+			initialState: 's1',
+			history: ['s3', 's2', 's4']
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's4',
+			history: ['s3', 's2']
+		} as typeof service)
+	})
+
+	it('handles auto transitions history', async () => {
+		const service = createService({
+			...baseService,
+			initialState: 's6',
+			history: []
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's4',
+			history: ['s6', 's7']
+		} as typeof service)
+	})
+
+	it("doesn't transition if no history", async () => {
+		const service = createService({
+			...baseService,
+			initialState: 's1',
+			history: []
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's1',
+			history: []
 		} as typeof service)
 	})
 })
