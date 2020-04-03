@@ -98,7 +98,7 @@ describe('createService', () => {
 
 	test('it creates service with guards', () => {
 		type Guard = 'applyGuard'
-		const guards: GuardMap<{}, Event, State<Schema>, Guard> = {
+		const guards: GuardMap<{}, Event, Schema, Guard> = {
 			applyGuard: () => Promise.resolve(true)
 		}
 		const guardMachine: Machine<Schema, Event['type'], Guard, undefined> = {
@@ -127,7 +127,7 @@ describe('createService', () => {
 
 	test('it creates service with actions', () => {
 		type Action = 'applyAction'
-		const actions: ActionMap<{}, Event, State<Schema>, Action> = {
+		const actions: ActionMap<{}, Event, Schema, Action> = {
 			applyAction: ({}) => Promise.resolve({})
 		}
 		const actionMachine: Machine<
@@ -237,10 +237,10 @@ describe('sendEvent', () => {
 		counter?: number
 	}
 	const context: Context = {}
-	const guards: GuardMap<Context, Event, State<Schema>, Guard> = {
+	const guards: GuardMap<Context, Event, Schema, Guard> = {
 		canDo: ({ counter }) => Promise.resolve(counter === 1)
 	}
-	const actions: ActionMap<Context, Event, State<Schema>, Action> = {
+	const actions: ActionMap<Context, Event, Schema, Action> = {
 		set: (context, state, event) => {
 			if (state === 'done' && event.type === 'back') {
 				return Promise.resolve({ counter: 1 })
@@ -520,20 +520,14 @@ describe('hierarchical state', () => {
 		counter: number
 	}
 	const context: Context = { counter: 0 }
-	const guards: GuardMap<Context, Event, State<Schema>, Guard> = {
+	const guards: GuardMap<Context, Event, Schema, Guard> = {
 		canDo: ({ counter }) => Promise.resolve(counter === 1)
 	}
-	const actions: ActionMap<Context, Event, State<Schema>, Action> = {
-		set: (context, state, event) => {
-			if (state === 's' && event.type === 'back') {
-				return Promise.resolve({ counter: 1 })
-			} else if (state === 's') {
-				return Promise.resolve(context)
-			} else {
-				return Promise.resolve({
-					counter: context.counter + 1
-				})
-			}
+	const actions: ActionMap<Context, Event, Schema, Action> = {
+		set: context => {
+			return Promise.resolve({
+				counter: context.counter + 1
+			})
 		},
 		inc: ({ counter }) => Promise.resolve({ counter: counter + 1 }),
 		delete: () => Promise.resolve({ counter: 0 })

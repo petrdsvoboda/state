@@ -61,8 +61,8 @@ export function createService<
 	machine: Machine<TStateSchema, TEventObject['type'], TGuard, TAction>
 	context: TContext
 	initialState?: CurrentState<TStateSchema>
-	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
-	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
+	guards: GuardMap<TContext, TEventObject, TStateSchema, TGuard>
+	actions: ActionMap<TContext, TEventObject, TStateSchema, TAction>
 	history?: CurrentState<TStateSchema>[]
 }): Service<TContext, TEventObject, TStateSchema, TGuard, TAction> {
 	return {
@@ -170,13 +170,9 @@ export const sendEvent = async <
 			const guard = (guards as any)[curr.cond] as GuardFn<
 				TContext,
 				TEventObject,
-				State<TStateSchema>
+				TStateSchema
 			>
-			return (await guard(
-				context,
-				statePath[statePath.length - 1],
-				eventObject
-			))
+			return (await guard(context, currentState, eventObject))
 				? curr
 				: null
 		} else {
@@ -224,8 +220,7 @@ export const sendEvent = async <
 		}
 	}
 
-	const leafState = statePath[statePath.length - 1]
-	const targetState = targetPath[targetPath.length - 1]
+	const targetState = fromStatePath<TStateSchema>(targetPath.join('.'))
 	const tActions = Array.isArray(transition.actions)
 		? transition.actions
 		: transition.actions === undefined
@@ -234,30 +229,30 @@ export const sendEvent = async <
 	const getExitActions = (
 		path: State<TStateSchema>[],
 		i: number
-	): [NonNullable<TAction>[], State<TStateSchema>][] => {
+	): [NonNullable<TAction>[], CurrentState<TStateSchema>][] => {
 		if (i > path.length) return []
 
 		const node = path.slice(0, i).reduce(getNode, machine)
 		const exitAction = node?.exit ?? []
-		return [[exitAction, leafState], ...getExitActions(path, i + 1)]
+		return [[exitAction, currentState], ...getExitActions(path, i + 1)]
 	}
 	const getEntryActions = (
 		path: State<TStateSchema>[],
 		i: number
-	): [NonNullable<TAction>[], State<TStateSchema>][] => {
+	): [NonNullable<TAction>[], CurrentState<TStateSchema>][] => {
 		if (i > path.length) return []
 
 		const node = path.slice(0, i).reduce(getNode, machine)
 		const entryActions = node?.entry ?? []
 		return [...getEntryActions(path, i + 1), [entryActions, targetState]]
 	}
-	const allActions: [NonNullable<TAction>[], State<TStateSchema>][] = [
+	const allActions: [NonNullable<TAction>[], CurrentState<TStateSchema>][] = [
 		...getExitActions(statePath, 0),
-		[tActions, leafState],
+		[tActions, currentState],
 		...getEntryActions(targetPath, 0)
 	]
 
-	const applyAction = (state: State<TStateSchema>) => async (
+	const applyAction = (state: CurrentState<TStateSchema>) => async (
 		acc: Promise<TContext>,
 		curr: NonNullable<TAction>
 	): Promise<TContext> => {
@@ -269,7 +264,7 @@ export const sendEvent = async <
 				prev,
 				state,
 				eventObject
-			)) as ActionFn<TContext, TEventObject, State<TStateSchema>>
+			)) as ActionFn<TContext, TEventObject, TStateSchema>
 			return Object.assign(prev, updatedContext)
 		} catch (err) {
 			throw new EventError(eventObject.type, curr.toString(), err)
@@ -278,7 +273,7 @@ export const sendEvent = async <
 
 	const applyActions = async (
 		actions: NonNullable<TAction>[] | undefined,
-		state: State<TStateSchema>,
+		state: CurrentState<TStateSchema>,
 		context: TContext
 	): Promise<TContext> => {
 		if (actions === undefined) return context
@@ -297,11 +292,10 @@ export const sendEvent = async <
 	)
 
 	// Successfull transition
-	const newState = fromStatePath<TStateSchema>(targetPath.join('.'))
 	let newService = {
 		...service,
 		context: newContext,
-		currentState: newState,
+		currentState: targetState,
 		history: newHistory
 	}
 

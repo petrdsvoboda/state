@@ -40,38 +40,41 @@ export type TransitionMap<
 export type GuardFn<
 	TContext extends {},
 	TEventObject extends EventObject<string>,
-	TState extends string | number | symbol
+	TStateSchema extends StateSchema
 > = (
 	context: TContext,
-	currentState: TState,
+	currentState: CurrentState<TStateSchema>,
 	event: TEventObject
 ) => Promise<boolean>
 export type GuardMap<
 	TContext extends {},
 	TEventObject extends EventObject<string>,
-	TState extends string | number | symbol,
+	TStateSchema extends StateSchema,
 	TGuard extends string | number | symbol | undefined
 > = TGuard extends undefined
 	? undefined
-	: Record<NonNullable<TGuard>, GuardFn<TContext, TEventObject, TState>>
+	: Record<NonNullable<TGuard>, GuardFn<TContext, TEventObject, TStateSchema>>
 
 export type ActionFn<
 	TContext extends {},
 	TEventObject extends EventObject<string>,
-	TState extends string | number | symbol
+	TStateSchema extends StateSchema
 > = (
 	context: TContext,
-	currentState: TState,
+	currentState: CurrentState<TStateSchema>,
 	event: TEventObject
 ) => Promise<Partial<TContext>>
 export type ActionMap<
 	TContext extends {},
 	TEventObject extends EventObject<string>,
-	TState extends string | number | symbol,
+	TStateSchema extends StateSchema,
 	TAction extends string | number | symbol | undefined
 > = TAction extends undefined
 	? undefined
-	: Record<NonNullable<TAction>, ActionFn<TContext, TEventObject, TState>>
+	: Record<
+			NonNullable<TAction>,
+			ActionFn<TContext, TEventObject, TStateSchema>
+	  >
 
 export interface StateSchema {
 	[key: string]: StateSchema | null
@@ -172,7 +175,7 @@ export type Service<
 	machine: Machine<TStateSchema, TEventObject['type'], TGuard, TAction>
 	context: TContext
 	currentState: CurrentState<TStateSchema>
-	guards: GuardMap<TContext, TEventObject, State<TStateSchema>, TGuard>
-	actions: ActionMap<TContext, TEventObject, State<TStateSchema>, TAction>
+	guards: GuardMap<TContext, TEventObject, TStateSchema, TGuard>
+	actions: ActionMap<TContext, TEventObject, TStateSchema, TAction>
 	history: CurrentState<TStateSchema>[]
 }
