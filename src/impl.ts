@@ -1,5 +1,5 @@
 import { createService, sendEvent } from './service'
-import { Machine, State, ActionMap, GuardMap } from './types'
+import { Machine, ActionMap, GuardMap } from './types'
 
 type SimpleEvents = 'do' | 'back'
 type Event = { type: SimpleEvents }
@@ -46,20 +46,14 @@ type Context = {
 	counter: number
 }
 const context: Context = { counter: 0 }
-const guards: GuardMap<Context, Event, State<Schema>, Guard> = {
+const guards: GuardMap<Context, Event, Schema, Guard> = {
 	canDo: ({ counter }) => Promise.resolve(counter === 1)
 }
-const actions: ActionMap<Context, Event, State<Schema>, Action> = {
-	set: (context, state, event) => {
-		if (state === 's' && event.type === 'back') {
-			return Promise.resolve({ counter: 1 })
-		} else if (state === 's') {
-			return Promise.resolve(context)
-		} else {
-			return Promise.resolve({
-				counter: context.counter + 1
-			})
-		}
+const actions: ActionMap<Context, Event, Schema, Action> = {
+	set: context => {
+		return Promise.resolve({
+			counter: context.counter + 1
+		})
 	},
 	inc: ({ counter }) => Promise.resolve({ counter: counter + 1 }),
 	delete: () => Promise.resolve({ counter: 0 })
