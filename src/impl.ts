@@ -72,7 +72,7 @@ export async function main(): Promise<void> {
 		initialState: { t: 't2' }
 	})
 
-	const next = await sendEvent(service, 'do')
+	const next = await sendEvent(service, 'do', true)
 	console.log(next.currentState, next.context)
 }
 

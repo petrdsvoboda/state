@@ -85,7 +85,8 @@ export const sendEvent = async <
 	TAction extends string | number | symbol | undefined
 >(
 	service: Service<TContext, TEventObject, TStateSchema, TGuard, TAction>,
-	event: Event<TEventObject>
+	event: Event<TEventObject>,
+	debug = false
 ): Promise<Service<TContext, TEventObject, TStateSchema, TGuard, TAction>> => {
 	const { machine, context, currentState, guards, actions, history } = service
 	// Fix types
@@ -95,6 +96,11 @@ export const sendEvent = async <
 	const statePath = toStatePath(currentState).split('.') as State<
 		TStateSchema
 	>[]
+
+	if (debug) {
+		console.log('== STATE == \tEvent:\t\t\t' + eventObject.type)
+		console.log('== STATE == \tFrom:\t\t\t' + statePath.join('.'))
+	}
 
 	const getNode = (
 		node:
@@ -159,6 +165,12 @@ export const sendEvent = async <
 	}
 
 	const performTransitions = getTransitions(statePath, 0)
+	if (debug) {
+		console.log(
+			'== STATE == \tPossible transitions:\t' +
+				JSON.stringify(performTransitions)
+		)
+	}
 	// Get first transition that passes guard
 	const transition = await performTransitions.reduce<
 		Promise<TransitionConfig<State<TStateSchema>, TGuard, TAction> | null>
@@ -179,6 +191,11 @@ export const sendEvent = async <
 			return curr
 		}
 	}, Promise.resolve(null))
+	if (debug) {
+		console.log(
+			'== STATE == \tChosen transition:\t' + JSON.stringify(transition)
+		)
+	}
 	if (transition === null) return service
 
 	const getInitialPath = (
@@ -251,6 +268,16 @@ export const sendEvent = async <
 		[tActions, currentState],
 		...getEntryActions(targetPath, 0)
 	]
+	if (debug) {
+		console.log(
+			'== STATE == \tActions:\t\t' +
+				JSON.stringify(
+					allActions
+						.filter(a => a[0].length > 0)
+						.map(a => [a[0], toStatePath(a[1])])
+				)
+		)
+	}
 
 	const applyAction = (state: CurrentState<TStateSchema>) => async (
 		acc: Promise<TContext>,
@@ -291,6 +318,10 @@ export const sendEvent = async <
 		Promise.resolve(context)
 	)
 
+	if (debug) {
+		console.log('== STATE == \tContext:\t\t' + JSON.stringify(newContext))
+	}
+
 	// Successfull transition
 	let newService = {
 		...service,
@@ -300,7 +331,7 @@ export const sendEvent = async <
 	}
 
 	// Apply auto transitions
-	newService = await sendEvent(newService, '')
+	newService = await sendEvent(newService, '', debug)
 
 	if (transition.target !== '$history') {
 		newService.history = [
@@ -308,6 +339,16 @@ export const sendEvent = async <
 			currentState,
 			...newService.history.slice(newHistory.length)
 		]
+	}
+
+	if (debug) {
+		console.log(
+			'== STATE == \tHistory:\t\t' +
+				JSON.stringify(newService.history.map(s => toStatePath(s)))
+		)
+		console.log(
+			'== STATE == \tTo:\t\t\t' + toStatePath(newService.currentState)
+		)
 	}
 
 	return newService
