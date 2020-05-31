@@ -1,8 +1,16 @@
 import { createService, sendEvent } from './service'
-import { Machine, ActionMap, GuardMap } from './types'
+import {
+	Machine,
+	ActionMap,
+	GuardMap,
+	EventObject,
+	EventObjectWithPayload
+} from './types'
 
 type SimpleEvents = 'do' | 'back'
-type Event = { type: SimpleEvents }
+type Event =
+	| EventObject<SimpleEvents>
+	| EventObjectWithPayload<'pay', { dingding: number }>
 type Guard = 'canDo'
 type Action = 'set' | 'inc' | 'delete'
 

@@ -1,10 +1,12 @@
 export type EventObject<TType> = {
 	type: TType
 }
-export type EventObjectWithPayload<TPayload> = EventObject<string> & {
+export type EventObjectWithPayload<TType, TPayload> = EventObject<TType> & {
 	payload: TPayload
 }
-export type AnyEventObject = EventObject<string> | EventObjectWithPayload<any>
+export type AnyEventObject =
+	| EventObject<string>
+	| EventObjectWithPayload<string, any>
 export type Event<TEvent extends EventObject<string>> =
 	| ''
 	| TEvent['type']
