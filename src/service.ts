@@ -13,7 +13,8 @@ import {
 	ActionMap,
 	CurrentState,
 	GuardFn,
-	ActionFn
+	ActionFn,
+	HistoryTransitionConfig
 } from './types'
 
 // const isNonNullable = <T>(arg: T): arg is NonNullable<T> =>
@@ -212,13 +213,27 @@ export const sendEvent = async <
 	let newHistory = history
 	let targetPath: State<TStateSchema>[]
 	if (transition.target === '$history') {
-		const historyState = [...newHistory].pop()
+		const tempHistory = [...newHistory]
+		let historyState = tempHistory.pop()
+
+		while (
+			historyState &&
+			(transition as HistoryTransitionConfig<
+				State<TStateSchema>,
+				TGuard,
+				TAction
+			>).ignore?.includes(
+				toStatePath(historyState) as NonNullable<State<TStateSchema>>
+			)
+		) {
+			historyState = tempHistory.pop()
+		}
 
 		if (historyState) {
 			targetPath = toStatePath(historyState).split('.') as State<
 				TStateSchema
 			>[]
-			newHistory = newHistory.slice(0, -1)
+			newHistory = tempHistory
 		} else {
 			return service
 		}

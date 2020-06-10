@@ -12,7 +12,7 @@ export type Event<TEvent extends EventObject<string>> =
 	| TEvent['type']
 	| TEvent
 
-export type TransitionConfig<
+export type SimpleTransitionConfig<
 	TState extends string | number | symbol,
 	TGuard extends string | number | symbol | undefined,
 	TAction extends string | number | symbol | undefined
@@ -21,6 +21,22 @@ export type TransitionConfig<
 	cond?: NonNullable<TGuard>
 	actions?: NonNullable<TAction> | NonNullable<TAction>[]
 }
+export type HistoryTransitionConfig<
+	TIgnoreState extends string | number | symbol | undefined,
+	TGuard extends string | number | symbol | undefined,
+	TAction extends string | number | symbol | undefined
+> = SimpleTransitionConfig<'$history', TGuard, TAction> & {
+	target: '$history'
+	ignore?: NonNullable<TIgnoreState>[]
+}
+
+export type TransitionConfig<
+	TState extends string | number | symbol,
+	TGuard extends string | number | symbol | undefined,
+	TAction extends string | number | symbol | undefined
+> =
+	| SimpleTransitionConfig<Exclude<TState, '$history'>, TGuard, TAction>
+	| HistoryTransitionConfig<TState, TGuard, TAction>
 
 export type Transition<
 	TState extends string | number | symbol,
@@ -29,8 +45,8 @@ export type Transition<
 > =
 	| TState
 	| '$history'
-	| TransitionConfig<TState | '$history', TGuard, TAction>
-	| TransitionConfig<TState | '$history', TGuard, TAction>[]
+	| TransitionConfig<TState, TGuard, TAction>
+	| TransitionConfig<TState, TGuard, TAction>[]
 
 export type TransitionMap<
 	TState extends string | number | symbol,
