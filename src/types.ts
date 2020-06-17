@@ -18,7 +18,7 @@ export type TransitionConfig<
 	TAction extends string | number | symbol | undefined
 > = {
 	target: TState
-	cond?: NonNullable<TGuard>
+	cond?: NonNullable<TGuard> | NonNullable<TGuard>[]
 	actions?: NonNullable<TAction> | NonNullable<TAction>[]
 }
 

@@ -11,7 +11,7 @@ type SimpleEvents = 'do' | 'back'
 type Event =
 	| EventObject<SimpleEvents>
 	| EventObjectWithPayload<'pay', { dingding: number }>
-type Guard = 'canDo'
+type Guard = 'canDo' | 'canDo2'
 type Action = 'set' | 'inc' | 'delete'
 
 type Schema = {
@@ -38,7 +38,7 @@ const machine: Machine<Schema, Event['type'], Guard, Action> = {
 			initial: 't1',
 			states: {
 				t1: {},
-				t2: { on: { do: 's' } }
+				t2: { on: { do: { target: 's', cond: ['canDo', 'canDo2'] } } }
 			},
 			on: {
 				do: 't'
@@ -55,7 +55,8 @@ type Context = {
 }
 const context: Context = { counter: 0 }
 const guards: GuardMap<Context, Event, Schema, Guard> = {
-	canDo: ({ counter }) => Promise.resolve(counter === 1)
+	canDo: ({ counter }) => Promise.resolve(counter === 1),
+	canDo2: () => Promise.resolve(true)
 }
 const actions: ActionMap<Context, Event, Schema, Action> = {
 	set: context => {
@@ -76,7 +77,7 @@ const baseService = createService({
 export async function main(): Promise<void> {
 	const service = createService({
 		...baseService,
-		context: { counter: 1 },
+		context: { counter: 2 },
 		initialState: { t: 't2' }
 	})
 

@@ -179,14 +179,22 @@ export const sendEvent = async <
 		if (t !== null) {
 			return t
 		} else if (curr.cond && guards) {
-			const guard = (guards as any)[curr.cond] as GuardFn<
-				TContext,
-				TEventObject,
-				TStateSchema
-			>
-			return (await guard(context, currentState, eventObject))
-				? curr
-				: null
+			const conditions: TGuard[] = Array.isArray(curr.cond)
+				? curr.cond
+				: [curr.cond]
+
+			const results: boolean[] = []
+			for (const cond of conditions) {
+				const guard = (guards as any)[cond] as GuardFn<
+					TContext,
+					TEventObject,
+					TStateSchema
+				>
+				const res = await guard(context, currentState, eventObject)
+				results.push(res)
+			}
+
+			return results.every(v => v == true) ? curr : null
 		} else {
 			return curr
 		}

@@ -1,6 +1,6 @@
 {
 	"name": "@petrdorg/state",
-	"version": "0.5.2",
+	"version": "0.5.4",
 	"main": "lib/index.js",
 	"types": "lib/index.d.ts",
 	"repository": "https://github.com/petrdsvoboda/state",
@@ -14,7 +14,7 @@
 		"test:coverage": "jest --coverage",
 		"build": "rm -rf lib & tsc",
 		"prepublish": "yarn test && yarn build",
-		"start": "ts-node-dev src/impl.ts"
+		"start": "ts-node-dev --poll src/impl.ts"
 	},
 	"dependencies": {},
 	"devDependencies": {
