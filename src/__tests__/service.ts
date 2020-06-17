@@ -703,6 +703,33 @@ describe('history state', () => {
 		} as typeof service)
 	})
 
+	it('handles ignore', async () => {
+		const customMachine: Machine<
+			Schema,
+			Event['type'],
+			undefined,
+			undefined
+		> = {
+			...machine,
+			states: {
+				...machine.states,
+				s1: { on: { do: { target: '$history', ignore: ['s4'] } } }
+			}
+		}
+		const service = createService({
+			...baseService,
+			machine: customMachine,
+			initialState: 's1',
+			history: ['s3', 's6', 's4']
+		})
+
+		expect(await sendEvent(service, 'do')).toEqual({
+			...service,
+			currentState: 's6',
+			history: ['s3']
+		} as typeof service)
+	})
+
 	it("doesn't transition if no history", async () => {
 		const service = createService({
 			...baseService,
