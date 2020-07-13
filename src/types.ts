@@ -71,7 +71,10 @@ export type GuardMap<
 	TGuard extends string | number | symbol | undefined
 > = TGuard extends undefined
 	? undefined
-	: Record<NonNullable<TGuard>, GuardFn<TContext, TEventObject, TStateSchema>>
+	: Record<
+			NonNullable<TGuard>,
+			GuardFn<TContext, TEventObject | EventObject<''>, TStateSchema>
+	  >
 
 export type ActionFn<
 	TContext extends {},
@@ -91,7 +94,7 @@ export type ActionMap<
 	? undefined
 	: Record<
 			NonNullable<TAction>,
-			ActionFn<TContext, TEventObject, TStateSchema>
+			ActionFn<TContext, TEventObject | EventObject<''>, TStateSchema>
 	  >
 
 export interface StateSchema {
