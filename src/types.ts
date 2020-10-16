@@ -1,3 +1,5 @@
+export type Context = Record<string, unknown>
+
 export type EventObject<TType> = {
 	type: TType
 }
@@ -18,9 +20,11 @@ export type SimpleTransitionConfig<
 	TAction extends string | number | symbol | undefined
 > = {
 	target: TState
-	cond?: NonNullable<TGuard> | NonNullable<TGuard>[]
-	actions?: NonNullable<TAction> | NonNullable<TAction>[]
-}
+} & (TGuard extends undefined
+	? never
+	: { cond?: NonNullable<TGuard> | Array<NonNullable<TGuard>> }) &
+	(TAction extends NonNullable<infer A> ? { actions?: A | Array<A> } : never)
+
 export type HistoryTransitionConfig<
 	TIgnoreState extends string | number | symbol | undefined,
 	TGuard extends string | number | symbol | undefined,
@@ -56,7 +60,7 @@ export type TransitionMap<
 > = Partial<Record<TEvent | '', Transition<TState, TGuard, TAction>>>
 
 export type GuardFn<
-	TContext extends {},
+	TContext extends Context,
 	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema
 > = (
@@ -65,19 +69,17 @@ export type GuardFn<
 	event: TEventObject
 ) => Promise<boolean>
 export type GuardMap<
-	TContext extends {},
+	TContext extends Context,
 	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema,
-	TGuard extends string | number | symbol | undefined
-> = TGuard extends undefined
-	? undefined
-	: Record<
-			NonNullable<TGuard>,
-			GuardFn<TContext, TEventObject | EventObject<''>, TStateSchema>
-	  >
+	TGuard extends string | number | symbol
+> = Record<
+	TGuard,
+	GuardFn<TContext, TEventObject | EventObject<''>, TStateSchema>
+>
 
 export type ActionFn<
-	TContext extends {},
+	TContext extends Context,
 	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema
 > = (
@@ -86,37 +88,24 @@ export type ActionFn<
 	event: TEventObject
 ) => Promise<Partial<TContext>>
 export type ActionMap<
-	TContext extends {},
+	TContext extends Context,
 	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema,
-	TAction extends string | number | symbol | undefined
-> = TAction extends undefined
-	? undefined
-	: Record<
-			NonNullable<TAction>,
-			ActionFn<TContext, TEventObject | EventObject<''>, TStateSchema>
-	  >
+	TAction extends string | number | symbol
+> = Record<
+	TAction,
+	ActionFn<TContext, TEventObject | EventObject<''>, TStateSchema>
+>
 
 export interface StateSchema {
 	[key: string]: StateSchema | null
 }
 
-// https://github.com/Microsoft/TypeScript/issues/31192#issuecomment-488391189
-type ObjKeyof<T> = T extends object ? keyof T : never
-type KeyofKeyof<T> = ObjKeyof<T> | { [K in keyof T]: ObjKeyof<T[K]> }[keyof T]
-type Lookup<T, K> = T extends any ? (K extends keyof T ? T[K] : never) : never
-type SimpleFlatten<T> = T extends object
-	? {
-			[K in KeyofKeyof<T>]:
-				| Exclude<K extends keyof T ? T[K] : never, object>
-				| { [P in keyof T]: Lookup<T[P], K> }[keyof T]
-	  }
-	: T
-type NestedFlatten<T> = SimpleFlatten<SimpleFlatten<SimpleFlatten<T>>>
-// mine
-type ObjKeyOf<T> = T extends object ? keyof T : never
+type ObjKeyOf<T> = T extends Record<string, unknown> ? keyof T : never
 type NestedObjKeyOf<T> = {
-	[K in keyof T]: T[K] extends object ? ObjKeyOf<T[K]> : never
+	[K in keyof T]: T[K] extends Record<string, unknown>
+		? ObjKeyOf<T[K]>
+		: never
 }[keyof T]
 type NestedKeyOf<T> =
 	| ObjKeyOf<T>
@@ -134,10 +123,13 @@ export type LeafStateNode<
 	TAction extends string | number | symbol | undefined
 > = {
 	on?: TransitionMap<State<TRootStateSchema>, TEvent, TGuard, TAction>
-	entry?: NonNullable<TAction>[]
-	exit?: NonNullable<TAction>[]
 	type?: 'default' | 'final'
-}
+} & (TAction extends NonNullable<infer A>
+	? {
+			entry?: Array<A>
+			exit?: Array<A>
+	  }
+	: never)
 
 export type StateNode<
 	TRootStateSchema extends StateSchema,
@@ -148,15 +140,11 @@ export type StateNode<
 > = LeafStateNode<TRootStateSchema, TEvent, TGuard, TAction> & {
 	initial: State<TStateSchema>
 	states: {
-		[K in keyof TStateSchema]: TStateSchema[K] extends null
-			? LeafStateNode<TRootStateSchema, TEvent, TGuard, TAction>
-			: StateNode<
-					TRootStateSchema,
-					NonNullable<TStateSchema[K]>,
-					TEvent,
-					TGuard,
-					TAction
-			  >
+		[K in keyof TStateSchema]: TStateSchema[K] extends NonNullable<
+			infer TNested
+		>
+			? StateNode<TRootStateSchema, any, TEvent, TGuard, TAction>
+			: LeafStateNode<TRootStateSchema, TEvent, TGuard, TAction>
 	}
 }
 
@@ -180,14 +168,14 @@ export type CurrentState<TStateSchema extends StateSchema> = {
 export type Machine<
 	TStateSchema extends StateSchema,
 	TEvent extends string,
-	TGuard extends string | number | symbol | undefined,
-	TAction extends string | number | symbol | undefined
+	TGuard extends string | number | symbol | undefined = undefined,
+	TAction extends string | number | symbol | undefined = undefined
 > = {
 	id: string
 } & StateNode<TStateSchema, TStateSchema, TEvent | '', TGuard, TAction>
 
 export type Service<
-	TContext extends {},
+	TContext extends Context,
 	TEventObject extends EventObject<string>,
 	TStateSchema extends StateSchema,
 	TGuard extends string | number | symbol | undefined,
@@ -196,7 +184,10 @@ export type Service<
 	machine: Machine<TStateSchema, TEventObject['type'], TGuard, TAction>
 	context: TContext
 	currentState: CurrentState<TStateSchema>
-	guards: GuardMap<TContext, TEventObject, TStateSchema, TGuard>
-	actions: ActionMap<TContext, TEventObject, TStateSchema, TAction>
 	history: CurrentState<TStateSchema>[]
-}
+} & (TGuard extends NonNullable<infer G>
+	? { guards: GuardMap<TContext, TEventObject, TStateSchema, G> }
+	: never) &
+	(TAction extends NonNullable<infer A>
+		? { actions: ActionMap<TContext, TEventObject, TStateSchema, A> }
+		: never)

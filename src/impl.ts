@@ -28,7 +28,7 @@ const machine: Machine<Schema, Event['type'], Guard, Action> = {
 			initial: 's1',
 			states: {
 				s1: {},
-				s2: { on: { do: 'u' } }
+				s2: { on: { do: { target: 'u' } } }
 			},
 			on: {
 				do: 't'
@@ -38,7 +38,11 @@ const machine: Machine<Schema, Event['type'], Guard, Action> = {
 			initial: 't1',
 			states: {
 				t1: {},
-				t2: { on: { do: { target: 's', cond: ['canDo', 'canDo2'] } } }
+				t2: {
+					on: {
+						do: { target: 's', cond: ['canDo', 'canDo2'] }
+					}
+				}
 			},
 			on: {
 				do: 't'
@@ -76,7 +80,7 @@ const baseService = createService({
 
 export async function main(): Promise<void> {
 	const service = createService({
-		...baseService,
+		...(baseService as any),
 		context: { counter: 2 },
 		initialState: { t: 't2' }
 	})

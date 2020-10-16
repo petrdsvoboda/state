@@ -51,7 +51,7 @@ describe('createService', () => {
 		done: null
 	}
 
-	const machine: Machine<Schema, Event['type'], undefined, undefined> = {
+	const machine: Machine<Schema, Event['type']> = {
 		id: 'test',
 		initial: 'new',
 		states: {

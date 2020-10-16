@@ -3,6 +3,6 @@
 	"editor.codeActionsOnSave": {
 		"source.fixAll": true
 	},
-	"typescript.tsdk": "node_modules/typescript/lib",
+	"typescript.tsdk": "/home/petrdsvoboda/repos/state/node_modules/typescript/lib",
 	"deno.enable": false
 }
