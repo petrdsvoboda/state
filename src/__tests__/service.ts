@@ -3,9 +3,10 @@ import {
 	sendEvent,
 	EventError,
 	fromStatePath,
-	toStatePath
+	toStatePath,
+	start
 } from '../service'
-import { Machine, GuardMap, ActionMap, State } from '../types'
+import { Machine, GuardMap, ActionMap, State, EventObject } from '../types'
 
 describe('fromStatePath', () => {
 	type Schema = {
@@ -741,6 +742,75 @@ describe('history state', () => {
 			...service,
 			currentState: 's1',
 			history: []
+		} as typeof service)
+	})
+})
+
+describe('start', () => {
+	type SimpleEvents = 'next'
+	type Event = EventObject<SimpleEvents>
+
+	type Schema = {
+		created: null
+		createdAuto: null
+		done: null
+	}
+
+	type Actions = 'add'
+
+	const machine: Machine<Schema, Event['type'], undefined, Actions> = {
+		id: 'test',
+		initial: 'created',
+		start: ['add'],
+		states: {
+			created: { on: { 'next': 'done' }},
+			createdAuto: { on: { '': 'done' }},
+			done: {}
+		}
+	}
+	type  Context = { x: number}
+	const context: Context = { x: 0 }
+
+	const actions: ActionMap<Context, Event, Schema, Actions> = {
+		add: context => {
+			return Promise.resolve({
+				x: context.x + 1
+			})
+		},
+	}
+
+	test('it performs start action', async () => {
+		const service = createService<Context, Event, Schema, undefined, Actions>({
+			machine,
+			context,
+			guards: undefined,
+			actions: actions
+		})
+		expect(await start(service)).toEqual({
+			machine,
+			context: {x: 1},
+			currentState: 'created',
+			guards: undefined,
+			actions: actions,
+			history: []
+		} as typeof service)
+	})
+
+	test('it performs auto transition', async () => {
+		machine.initial = 'createdAuto'
+		const service = createService<Context, Event, Schema, undefined, Actions>({
+			machine,
+			context: {x: 0},
+			guards: undefined,
+			actions: actions
+		})
+		expect(await start(service)).toEqual({
+			machine,
+			context: { x: 1 },
+			currentState: 'done',
+			guards: undefined,
+			actions: actions,
+			history: ['createdAuto']
 		} as typeof service)
 	})
 })

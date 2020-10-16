@@ -377,4 +377,77 @@ export const sendEvent = async <
 	return newService
 }
 
+export const start = async <
+	TContext extends {},
+	TEventObject extends EventObject<string>,
+	TStateSchema extends StateSchema,
+	TGuard extends string | number | symbol | undefined,
+	TAction extends string | number | symbol | undefined
+>(
+	service: Service<TContext, TEventObject, TStateSchema, TGuard, TAction>,
+	debug = false
+): Promise<Service<TContext, TEventObject, TStateSchema, TGuard, TAction>> => {
+	const {
+		machine: { start: startActions },
+		currentState,
+		actions,
+		context
+	} = service
+	const eventObject: TEventObject = { type: '$start' } as any
+
+	const allActions: [NonNullable<TAction>[], CurrentState<TStateSchema>][] = [
+		[startActions ?? [], currentState]
+	]
+
+	const applyAction = (state: CurrentState<TStateSchema>) => async (
+		acc: Promise<TContext>,
+		curr: NonNullable<TAction>
+	): Promise<TContext> => {
+		const prev = await acc
+		if (!actions) return prev
+
+		try {
+			const updatedContext = (await (actions as any)[curr](
+				prev,
+				state,
+				eventObject
+			)) as ActionFn<TContext, TEventObject, TStateSchema>
+			return Object.assign(prev, updatedContext)
+		} catch (err) {
+			throw new EventError(eventObject.type, curr.toString(), err)
+		}
+	}
+
+	const applyActions = async (
+		actions: NonNullable<TAction>[] | undefined,
+		state: CurrentState<TStateSchema>,
+		context: TContext
+	): Promise<TContext> => {
+		if (actions === undefined) return context
+
+		return await actions.reduce<Promise<TContext>>(
+			applyAction(state),
+			Promise.resolve(context)
+		)
+	}
+
+	if (startActions) {
+		service.context = await allActions.reduce(
+			async (acc, [actions, state]) =>
+				await applyActions(actions, state, await acc),
+			Promise.resolve(context)
+		)
+	}
+
+	if (debug) {
+		console.log(
+			'== START == \tTo:\t\t\t' + toStatePath(service.currentState)
+		)
+	}
+
+	service = await sendEvent(service, '', debug)
+
+	return service
+}
+
 export default Service

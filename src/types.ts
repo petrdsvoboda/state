@@ -9,6 +9,7 @@ export type AnyEventObject =
 	| EventObjectWithPayload<string, any>
 export type Event<TEvent extends EventObject<string>> =
 	| ''
+	| '$start'
 	| TEvent['type']
 	| TEvent
 
@@ -73,7 +74,11 @@ export type GuardMap<
 	? undefined
 	: Record<
 			NonNullable<TGuard>,
-			GuardFn<TContext, TEventObject | EventObject<''>, TStateSchema>
+			GuardFn<
+				TContext,
+				TEventObject | EventObject<''> | EventObject<'$start'>,
+				TStateSchema
+			>
 	  >
 
 export type ActionFn<
@@ -94,7 +99,11 @@ export type ActionMap<
 	? undefined
 	: Record<
 			NonNullable<TAction>,
-			ActionFn<TContext, TEventObject | EventObject<''>, TStateSchema>
+			ActionFn<
+				TContext,
+				TEventObject | EventObject<''> | EventObject<'$start'>,
+				TStateSchema
+			>
 	  >
 
 export interface StateSchema {
@@ -184,6 +193,7 @@ export type Machine<
 	TAction extends string | number | symbol | undefined
 > = {
 	id: string
+	start?: NonNullable<TAction>[]
 } & StateNode<TStateSchema, TStateSchema, TEvent | '', TGuard, TAction>
 
 export type Service<
