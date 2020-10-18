@@ -1,88 +1,124 @@
-import { createService, sendEvent } from './service'
-import {
-	Machine,
-	ActionMap,
-	GuardMap,
-	EventObject,
-	EventObjectWithPayload
-} from './types'
+import { init, sendEvent } from './service'
+import { Machine, ActionMap, GuardMap, ServiceConfig } from './types'
 
-type SimpleEvents = 'do' | 'back'
-type Event =
-	| EventObject<SimpleEvents>
-	| EventObjectWithPayload<'pay', { dingding: number }>
+type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
+type CustomEvents = { type: 'addPayload'; payload: { counter: number } }
+type Event = { type: SimpleEvents } | CustomEvents
 type Guard = 'canDo' | 'canDo2'
-type Action = 'set' | 'inc' | 'delete'
+type Action = 'set' | 'inc' | 'delete' | 'fail' | 'globSet'
 
 type Schema = {
-	s: { s1: null; s2: null }
-	t: { t1: null; t2: null }
-	u: null
+	new: null
+	state1: null
+	state2: null
+	state3: null
+	state4: null
+	state5: null
+	state6: null
+	state7: null
+	state8: null
+	state9: null
+	done: null
 }
 
-const machine: Machine<Schema, Event['type'], Guard, Action> = {
-	id: 'hierarchical',
-	initial: 's',
+const machine: Machine<Schema, Event['type'], Action, Guard> = {
+	id: 'test',
+	initial: 'new',
 	states: {
-		s: {
-			initial: 's1',
-			states: {
-				s1: {},
-				s2: { on: { do: { target: 'u' } } }
-			},
+		new: {
 			on: {
-				do: 't'
+				do: [{ target: 'state1', cond: 'canDo' }, { target: 'state2' }],
+				complete: { target: 'done' }
 			}
 		},
-		t: {
-			initial: 't1',
-			states: {
-				t1: {},
-				t2: {
-					on: {
-						do: { target: 's', cond: ['canDo', 'canDo2'] }
-					}
-				}
-			},
+		state1: {
 			on: {
-				do: 't'
+				complete: { target: 'state3' },
+				do: 'state2',
+				back: { target: 'new', cond: 'canDo' }
 			}
 		},
-		u: {}
+		state2: {
+			on: {
+				do: { target: 'state3', actions: ['inc'] },
+				addPayload: { target: 'state3', actions: ['set'] }
+			}
+		},
+		state3: {},
+		state4: {
+			on: {
+				'': { target: 'state5', actions: ['set'] },
+				do: { target: 'state4', actions: ['fail'] }
+			}
+		},
+		state5: { on: { '': { target: 'done', actions: ['inc'] } } },
+		state6: { on: { do: { target: 'state7' } } },
+		state7: {
+			on: { do: { target: 'state6' } },
+			exit: ['inc'],
+			entry: ['inc']
+		},
+		state8: {
+			on: {
+				do: { target: 'done', actions: ['inc'] },
+				back: { target: 'done' }
+			},
+			exit: ['set']
+		},
+		state9: {
+			on: { do: { target: 'done', cond: ['canDo', 'canDo2'] } }
+		},
+		done: { entry: ['set'] }
 	},
-	on: { do: { target: 's2' } },
-	entry: ['set'],
-	exit: ['set']
+	on: { restart: { target: 'new' } },
+	entry: ['globSet'],
+	exit: ['globSet']
 }
 type Context = {
-	counter: number
+	counter?: number
 }
-const context: Context = { counter: 0 }
-const guards: GuardMap<Context, Event, Schema, Guard> = {
-	canDo: ({ counter }) => Promise.resolve(counter === 1),
+const guards: GuardMap<Schema, Event, Guard, Context> = {
+	canDo: ({ context: { counter } }) => Promise.resolve(counter === 1),
 	canDo2: () => Promise.resolve(true)
 }
-const actions: ActionMap<Context, Event, Schema, Action> = {
-	set: context => {
-		return Promise.resolve({
-			counter: context.counter + 1
-		})
+const actions: ActionMap<Schema, Event, Action, Context> = {
+	set: ({ context, currentState, event }) => {
+		if (currentState === 'done' && event.type === 'back') {
+			return Promise.resolve({ counter: 1 })
+		} else if (currentState === 'done') {
+			return Promise.resolve(context)
+		} else {
+			return Promise.resolve({
+				counter: event.type === 'addPayload' ? event.payload.counter : 1
+			})
+		}
 	},
-	inc: ({ counter }) => Promise.resolve({ counter: counter + 1 }),
-	delete: () => Promise.resolve({ counter: 0 })
+	inc: ({ context: { counter } }) =>
+		Promise.resolve(counter ? { counter: counter + 1 } : { counter: 1 }),
+	delete: () => Promise.resolve({}),
+	fail: () => Promise.reject('fail'),
+	globSet: ({ context, currentState, event: { type } }) => {
+		if (
+			(currentState === 'state8' && type === 'do') ||
+			(currentState === 'done' && type === 'back')
+		) {
+			return Promise.resolve({ counter: 2 })
+		} else {
+			return Promise.resolve(context)
+		}
+	}
 }
-const baseService = createService({
+const config: ServiceConfig<Schema, Event, Action, Guard, Context> = {
 	machine,
-	context,
 	guards,
 	actions
-})
+}
 
 export async function main(): Promise<void> {
-	const service = createService({
-		...(baseService as any),
-		context: { counter: 2 },
-		initialState: { t: 't2' }
+	const service = init({
+		...config,
+		context: { counter: 1 },
+		currentState: 'state6'
 	})
 
 	const next = await sendEvent(service, 'do', true)

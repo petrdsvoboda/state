@@ -1,47 +1,14 @@
+import { init, sendEvent } from '../service'
+import { EventError } from '../error'
 import {
-	createService,
-	sendEvent,
-	EventError,
-	fromStatePath,
-	toStatePath
-} from '../service'
-import { Machine, GuardMap, ActionMap, State } from '../types'
+	Machine,
+	GuardMap,
+	ActionMap,
+	ServiceConfig,
+	StateName
+} from '../types'
 
-describe('fromStatePath', () => {
-	type Schema = {
-		new: null
-		s: { s1: { s2: null } }
-		done: null
-	}
-
-	it('creates from simple path', () => {
-		expect(fromStatePath<Schema>('new')).toEqual('new')
-	})
-
-	it('creates from nested path', () => {
-		expect(fromStatePath<Schema>('s.s1.s2')).toEqual({ s: { s1: 's2' } })
-	})
-})
-
-describe('toStatePath', () => {
-	type Schema = {
-		new: null
-		s: { s1: { s2: null } }
-		done: null
-	}
-
-	it('creates simple path', () => {
-		expect(toStatePath<Schema>('new')).toEqual('new')
-	})
-
-	it('creates nested path', () => {
-		expect(
-			toStatePath<Schema>({ s: { s1: 's2' } })
-		).toEqual('s.s1.s2')
-	})
-})
-
-describe('createService', () => {
+describe('init', () => {
 	type SimpleEvents = 'complete'
 	type CustomEvents = { type: 'custom' }
 	type Event = { type: SimpleEvents } | CustomEvents
@@ -59,49 +26,31 @@ describe('createService', () => {
 			done: {}
 		}
 	}
-	const context: {} = {}
 
 	test('it creates simple service', () => {
-		const service = createService<{}, Event, Schema, undefined, undefined>({
-			machine,
-			context,
-			guards: undefined,
-			actions: undefined
-		})
+		const service = init<Schema, Event>({ machine })
 		expect(service).toEqual({
 			machine,
-			context,
 			currentState: 'new',
-			guards: undefined,
-			actions: undefined,
 			history: []
 		} as typeof service)
 	})
 
 	test('it creates service at state', () => {
-		const service = createService<{}, Event, Schema, undefined, undefined>({
-			machine,
-			context,
-			initialState: 'done',
-			guards: undefined,
-			actions: undefined
-		})
+		const service = init<Schema, Event>({ machine, currentState: 'done' })
 		expect(service).toEqual({
 			machine,
-			context,
 			currentState: 'done',
-			guards: undefined,
-			actions: undefined,
 			history: []
 		} as typeof service)
 	})
 
 	test('it creates service with guards', () => {
 		type Guard = 'applyGuard'
-		const guards: GuardMap<{}, Event, Schema, Guard> = {
+		const guards: GuardMap<Schema, Event, Guard> = {
 			applyGuard: () => Promise.resolve(true)
 		}
-		const guardMachine: Machine<Schema, Event['type'], Guard, undefined> = {
+		const guardMachine: Machine<Schema, Event['type'], undefined, Guard> = {
 			id: 'test',
 			initial: 'new',
 			states: {
@@ -109,33 +58,24 @@ describe('createService', () => {
 				done: {}
 			}
 		}
-		const service = createService<{}, Event, Schema, Guard, undefined>({
+		const service = init<Schema, Event, undefined, Guard>({
 			machine: guardMachine,
-			context,
-			guards,
-			actions: undefined
+			guards
 		})
 		expect(service).toEqual({
 			machine,
-			context,
 			guards,
 			currentState: 'new',
-			actions: undefined,
 			history: []
 		} as typeof service)
 	})
 
 	test('it creates service with actions', () => {
 		type Action = 'applyAction'
-		const actions: ActionMap<{}, Event, Schema, Action> = {
-			applyAction: ({}) => Promise.resolve({})
+		const actions: ActionMap<Schema, Event, Action> = {
+			applyAction: () => Promise.resolve(undefined)
 		}
-		const actionMachine: Machine<
-			Schema,
-			Event['type'],
-			undefined,
-			Action
-		> = {
+		const actionMachine: Machine<Schema, Event['type'], Action> = {
 			id: 'test',
 			initial: 'new',
 			states: {
@@ -143,20 +83,16 @@ describe('createService', () => {
 				done: {}
 			}
 		}
-		const service = createService<{}, Event, Schema, undefined, Action>({
+		const service = init<Schema, Event, Action>({
 			machine: actionMachine,
-			context,
-			actions,
-			guards: undefined
+			actions
 		})
 		expect(service).toEqual({
 			machine,
-			context,
 			actions,
 			currentState: 'new',
-			guards: undefined,
 			history: []
-		} as typeof service)
+		})
 	})
 })
 
@@ -181,7 +117,7 @@ describe('sendEvent', () => {
 		done: null
 	}
 
-	const machine: Machine<Schema, Event['type'], Guard, Action> = {
+	const machine: Machine<Schema, Event['type'], Action, Guard> = {
 		id: 'test',
 		initial: 'new',
 		states: {
@@ -237,19 +173,16 @@ describe('sendEvent', () => {
 		entry: ['globSet'],
 		exit: ['globSet']
 	}
-	type Context = {
-		counter?: number
-	}
-	const context: Context = {}
-	const guards: GuardMap<Context, Event, Schema, Guard> = {
-		canDo: ({ counter }) => Promise.resolve(counter === 1),
+	type Context = { counter?: number }
+	const guards: GuardMap<Schema, Event, Guard, Context> = {
+		canDo: ({ context: { counter } }) => Promise.resolve(counter === 1),
 		canDo2: () => Promise.resolve(true)
 	}
-	const actions: ActionMap<Context, Event, Schema, Action> = {
-		set: (context, state, event) => {
-			if (state === 'done' && event.type === 'back') {
+	const actions: ActionMap<Schema, Event, Action, Context> = {
+		set: ({ context, currentState, event }) => {
+			if (currentState === 'done' && event.type === 'back') {
 				return Promise.resolve({ counter: 1 })
-			} else if (state === 'done') {
+			} else if (currentState === 'done') {
 				return Promise.resolve(context)
 			} else {
 				return Promise.resolve({
@@ -258,16 +191,16 @@ describe('sendEvent', () => {
 				})
 			}
 		},
-		inc: ({ counter }) =>
+		inc: ({ context: { counter } }) =>
 			Promise.resolve(
 				counter ? { counter: counter + 1 } : { counter: 1 }
 			),
 		delete: () => Promise.resolve({}),
 		fail: () => Promise.reject('fail'),
-		globSet: (context, state, { type }) => {
+		globSet: ({ context, currentState, event: { type } }) => {
 			if (
-				(state === 'state8' && type === 'do') ||
-				(state === 'done' && type === 'back')
+				(currentState === 'state8' && type === 'do') ||
+				(currentState === 'done' && type === 'back')
 			) {
 				return Promise.resolve({ counter: 2 })
 			} else {
@@ -275,121 +208,134 @@ describe('sendEvent', () => {
 			}
 		}
 	}
-	const baseService = createService({
+	const config: ServiceConfig<Schema, Event, Action, Guard, Context> = {
 		machine,
-		context,
 		guards,
 		actions
-	})
+	}
 
 	test('it completes simple transition', async () => {
-		expect(await sendEvent(baseService, 'complete')).toEqual({
-			...baseService,
+		const service = init({
+			...config,
 			currentState: 'done',
 			history: ['new']
-		} as typeof baseService)
+		})
+		expect(await sendEvent(service, 'complete')).toEqual({
+			...config,
+			currentState: 'done',
+			history: ['new']
+		})
 	})
 
 	test('it stays at state without transition', async () => {
-		const service = createService<Context, Event, Schema, Guard, Action>({
-			...baseService,
-			machine: {
-				...(baseService.machine as any),
-				on: undefined
-			}
+		const service = init({
+			...config,
+			currentState: 'done',
+			history: ['new'],
+			machine: { ...config.machine, on: undefined } as typeof machine
 		})
 		expect(await sendEvent(service, 'back')).toEqual(service)
 	})
 
 	test('it handles global transition', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 'state3'
+		const service = init({
+			...config,
+			currentState: 'state3'
 		})
 		expect(await sendEvent(service, 'restart')).toEqual({
-			...service,
+			...config,
 			currentState: 'new',
 			history: ['state3']
-		} as typeof service)
+		})
 	})
 
 	test('it handles auto transition', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 'state4'
+		const service = init({
+			...config,
+			currentState: 'state4'
 		})
 		expect(await sendEvent(service, '')).toEqual({
-			...service,
+			...config,
 			currentState: 'done',
 			context: { counter: 2 },
 			history: ['state4', 'state5']
-		} as typeof service)
+		})
 	})
 
 	test('it handles passed guards', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 }
 		})
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 'state1',
-			history: ['new']
-		} as typeof service)
+			history: ['new'],
+			context: { counter: 1 }
+		})
 	})
 
 	test('it handles failed guards', async () => {
-		expect(await sendEvent(baseService, 'do')).toEqual({
-			...baseService,
+		// FIXME there should not be context supplied
+		const service = init({
+			...config,
+			context: { counter: 2 }
+		})
+		expect(await sendEvent(service, 'do')).toEqual({
+			...config,
 			currentState: 'state2',
-			history: ['new']
-		} as typeof baseService)
+			history: ['new'],
+			context: { counter: 2 }
+		})
 	})
 
 	test('it handles all failed guards', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 2 },
-			initialState: 'state1'
+			currentState: 'state1'
 		})
 		expect(await sendEvent(service, 'back')).toEqual({
-			...service,
-			currentState: 'state1'
-		} as typeof baseService)
+			...config,
+			currentState: 'state1',
+			context: { counter: 2 },
+			history: []
+		})
 	})
 
 	test('it handles multiple guards', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state9'
+			currentState: 'state9'
 		})
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 'done',
-			history: ['state9']
-		} as typeof service)
+			history: ['state9'],
+			context: { counter: 1 }
+		})
 	})
 
 	test('it handles actions', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state2'
+			currentState: 'state2'
 		})
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 'state3',
 			context: { counter: 2 },
 			history: ['state2']
-		} as typeof service)
+		})
 	})
 
 	test('it handles actions with data', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state2'
+			currentState: 'state2'
 		})
 		expect(
 			await sendEvent(service, {
@@ -397,18 +343,18 @@ describe('sendEvent', () => {
 				payload: { counter: 5 }
 			})
 		).toEqual({
-			...service,
+			...config,
 			currentState: 'state3',
 			context: { counter: 5 },
 			history: ['state2']
-		} as typeof service)
+		})
 	})
 
 	test('it handles failed action', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state4'
+			currentState: 'state4'
 		})
 
 		await expect(sendEvent(service, 'do')).rejects.toThrow(
@@ -417,78 +363,80 @@ describe('sendEvent', () => {
 	})
 
 	test('it handles entry action', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state6'
+			currentState: 'state6'
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 'state7',
 			context: { counter: 2 },
 			history: ['state6']
-		} as typeof service)
+		})
 	})
 
 	test('it handles exit action', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state7'
+			currentState: 'state7'
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 'state6',
 			context: { counter: 2 },
 			history: ['state7']
-		} as typeof service)
+		})
 	})
 
 	test('it handles global entry action', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state8'
+			currentState: 'state8'
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 'done',
 			context: { counter: 2 },
 			history: ['state8']
-		} as typeof service)
+		})
 	})
 
 	test('it handles global exit action', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state8'
+			currentState: 'state8'
 		})
 
 		expect(await sendEvent(service, 'back')).toEqual({
-			...service,
+			...config,
 			currentState: 'done',
 			context: { counter: 2 },
 			history: ['state8']
-		} as typeof service)
+		})
 	})
 
 	test('it handles transition if no actions provided', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: 'state8',
+			currentState: 'state8',
 			actions: undefined as any
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
+			context: { counter: 1 },
 			currentState: 'done',
-			history: ['state8']
-		} as typeof service)
+			history: ['state8'],
+			actions: undefined as any
+		})
 	})
 })
 
@@ -504,7 +452,7 @@ describe('hierarchical state', () => {
 		u: null
 	}
 
-	const machine: Machine<Schema, Event['type'], Guard, Action> = {
+	const machine: Machine<Schema, Event['type'], Action, Guard> = {
 		id: 'hierarchical',
 		initial: 's',
 		states: {
@@ -524,78 +472,74 @@ describe('hierarchical state', () => {
 					t1: {},
 					t2: { on: { do: 's' } }
 				},
-				on: {
-					do: 't'
-				}
+				on: { do: 't' }
 			},
 			u: {}
 		},
-		on: { do: { target: 's2' } },
+		on: { do: { target: 's.s2' } },
 		entry: ['set'],
 		exit: ['set']
 	}
 	type Context = {
 		counter: number
 	}
-	const context: Context = { counter: 0 }
-	const guards: GuardMap<Context, Event, Schema, Guard> = {
-		canDo: ({ counter }) => Promise.resolve(counter === 1)
+	const guards: GuardMap<Schema, Event, Guard, Context> = {
+		canDo: ({ context: { counter } }) => Promise.resolve(counter === 1)
 	}
-	const actions: ActionMap<Context, Event, Schema, Action> = {
-		set: context => {
-			return Promise.resolve({
-				counter: context.counter + 1
-			})
-		},
-		inc: ({ counter }) => Promise.resolve({ counter: counter + 1 }),
+	const actions: ActionMap<Schema, Event, Action, Context> = {
+		set: () => Promise.resolve({ counter: 1 }),
+		inc: ({ context: { counter } }) =>
+			Promise.resolve({ counter: counter + 1 }),
 		delete: () => Promise.resolve({ counter: 0 })
 	}
-	const baseService = createService({
+	const config: ServiceConfig<Schema, Event, Action, Guard, Context> = {
 		machine,
-		context,
 		guards,
 		actions
-	})
+	}
 
 	it('starts in nested state', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: { s: 's1' }
+			currentState: 's.s1'
 		})
 
 		expect(service).toEqual({
 			...service,
-			currentState: { s: 's1' }
-		} as typeof service)
+			context: { counter: 1 },
+			currentState: 's.s1'
+		})
 	})
 
 	it('transitions to parent', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: { s: 's2' }
+			currentState: 's.s2'
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
+			context: { counter: 1 },
 			currentState: 'u',
-			history: [{ s: 's2' }]
-		} as typeof service)
+			history: ['s.s2']
+		})
 	})
 
 	it('transitions to inner state', async () => {
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			context: { counter: 1 },
-			initialState: { t: 't2' }
+			currentState: 't.t2'
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
-			currentState: { s: 's1' },
-			history: [{ t: 't2' }]
-		} as typeof service)
+			...config,
+			context: { counter: 1 },
+			currentState: 's.s1',
+			history: ['t.t2']
+		})
 	})
 })
 
@@ -613,7 +557,7 @@ describe('history state', () => {
 		s7: null
 	}
 
-	const machine: Machine<Schema, Event['type'], undefined, undefined> = {
+	const machine: Machine<Schema, Event['type']> = {
 		id: 'history',
 		initial: 's1',
 		states: {
@@ -626,100 +570,90 @@ describe('history state', () => {
 			s7: { on: { '': 's4' } }
 		}
 	}
-	const baseService = createService({
-		machine,
-		context: {},
-		guards: undefined,
-		actions: undefined
-	})
+	const config: ServiceConfig<Schema, Event> = { machine }
 
 	it('transitions to history', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 's1',
+		const service = init({
+			...config,
+			currentState: 's1',
 			history: ['s4']
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 's4',
 			history: []
-		} as typeof service)
+		})
 	})
 
 	it('transitions to nested history', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 's1',
+		const service = init({
+			...config,
+			currentState: 's1',
 			history: ['s4', 's3', 's2']
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 's4',
 			history: []
-		} as typeof service)
+		})
 	})
 
 	it('auto transitions to nested history', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 's1',
+		const service = init({
+			...config,
+			currentState: 's1',
 			history: ['s4', 's5']
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 's4',
 			history: ['s5']
-		} as typeof service)
+		})
 	})
 
 	it('handles previous history', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 's1',
+		const service = init({
+			...config,
+			currentState: 's1',
 			history: ['s3', 's2', 's4']
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 's4',
 			history: ['s3', 's2']
-		} as typeof service)
+		})
 	})
 
 	it('handles auto transitions history', async () => {
-		const service = createService({
-			...baseService,
-			initialState: 's6',
+		const service = init({
+			...config,
+			currentState: 's6',
 			history: []
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 's4',
 			history: ['s6', 's7']
-		} as typeof service)
+		})
 	})
 
 	it('handles ignore', async () => {
-		const customMachine: Machine<
-			Schema,
-			Event['type'],
-			undefined,
-			undefined
-		> = {
+		const customMachine: Machine<Schema, Event['type']> = {
 			...machine,
 			states: {
 				...machine.states,
 				s1: { on: { do: { target: '$history', ignore: ['s4'] } } }
 			}
 		}
-		const service = createService({
-			...baseService,
+		const service = init({
+			...config,
 			machine: customMachine,
-			initialState: 's1',
+			currentState: 's1',
 			history: ['s3', 's6', 's4']
 		})
 
@@ -727,20 +661,20 @@ describe('history state', () => {
 			...service,
 			currentState: 's6',
 			history: ['s3']
-		} as typeof service)
+		})
 	})
 
 	it("doesn't transition if no history", async () => {
-		const service = createService({
-			...baseService,
-			initialState: 's1',
+		const service = init({
+			...config,
+			currentState: 's1',
 			history: []
 		})
 
 		expect(await sendEvent(service, 'do')).toEqual({
-			...service,
+			...config,
 			currentState: 's1',
 			history: []
-		} as typeof service)
+		})
 	})
 })
