@@ -24,7 +24,8 @@ import {
 	exitActions,
 	toActionTuple,
 	transitionActions,
-	performActions
+	performActions,
+	borderActions
 } from './action'
 
 export function buildConfig<
@@ -57,6 +58,94 @@ export function init<
 		history: options.history ?? ([] as any[]),
 		currentState: options.currentState ?? (options.machine.initial as any)
 	}
+}
+
+export async function start<T extends AnyService>(
+	service: T,
+	debug = false
+): Promise<T> {
+	const { machine, currentState } = service
+	const path = stateToPath(currentState)
+	const actions = (service as any).actions
+	const context = (service as any).context
+
+	const eventObject: AnyEventObject = { type: '$start' }
+	log.from(debug, { eventObject, currentState })
+
+	const actionTuples: ActionTuple[] = toActionTuple(
+		borderActions(path, machine as any, 'start'),
+		currentState
+	)
+
+	log.actions(debug, { actionTuples })
+
+	// Update context using actions
+	const newContext = await performActions(actionTuples, {
+		actions,
+		context,
+		eventObject
+	})
+	log.context(debug, { context: newContext })
+
+	// Successfull transition
+	let newService = {
+		...service,
+		context: newContext
+	}
+
+	// Apply auto transitions
+	newService = await sendEvent(newService, '', debug)
+
+	log.to(debug, {
+		history: newService.history,
+		currentState: newService.currentState
+	})
+
+	return newService
+}
+
+export async function end<T extends AnyService>(
+	service: T,
+	debug = false
+): Promise<T> {
+	const { machine, currentState } = service
+	const path = stateToPath(currentState)
+	const actions = (service as any).actions
+	const context = (service as any).context
+
+	const eventObject: AnyEventObject = { type: '$end' }
+	log.from(debug, { eventObject, currentState })
+
+	const actionTuples: ActionTuple[] = toActionTuple(
+		borderActions(path, machine as any, 'end'),
+		currentState
+	)
+
+	log.actions(debug, { actionTuples })
+
+	// Update context using actions
+	const newContext = await performActions(actionTuples, {
+		actions,
+		context,
+		eventObject
+	})
+	log.context(debug, { context: newContext })
+
+	// Successfull transition
+	let newService = {
+		...service,
+		context: newContext
+	}
+
+	// Apply auto transitions
+	newService = await sendEvent(newService, '', debug)
+
+	log.to(debug, {
+		history: newService.history,
+		currentState: newService.currentState
+	})
+
+	return newService
 }
 
 export const sendEvent = async <T extends AnyService>(

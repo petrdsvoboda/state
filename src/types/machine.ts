@@ -18,6 +18,8 @@ export type LeafStateNode<
 	? {
 			entry?: Array<A>
 			exit?: Array<A>
+			start?: Array<A>
+			end?: Array<A>
 	  }
 	: unknown)
 

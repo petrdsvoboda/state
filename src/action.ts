@@ -7,7 +7,8 @@ import {
 	Context,
 	StateName,
 	AnyActionMap,
-	AnyEventObject
+	AnyEventObject,
+	StatePath
 } from './types'
 import { AnyTransitionConfig } from './types/transition'
 import { isArray } from './utils'
@@ -21,7 +22,10 @@ export const transitionActions = (
 	else return [actions]
 }
 
-export const exitActions = (path: string[], root: AnyStateNode): Action[] => {
+export const exitActions = (
+	path: StatePath<any>,
+	root: AnyStateNode
+): Action[] => {
 	const actions: Action[] = []
 	for (let index = 0; index <= path.length; index++) {
 		const nodePath = path.slice(0, index)
@@ -33,7 +37,10 @@ export const exitActions = (path: string[], root: AnyStateNode): Action[] => {
 	return actions
 }
 
-export const entryActions = (path: string[], root: AnyStateNode): Action[] => {
+export const entryActions = (
+	path: StatePath<any>,
+	root: AnyStateNode
+): Action[] => {
 	const actions: Action[] = []
 	for (let index = 0; index <= path.length; index++) {
 		const nodePath = path.slice(0, index)
@@ -43,6 +50,22 @@ export const entryActions = (path: string[], root: AnyStateNode): Action[] => {
 		actions.unshift(...node.entry)
 	}
 	return actions
+}
+
+export const borderActions = (
+	path: StatePath<any>,
+	root: AnyStateNode,
+	type: 'start' | 'end'
+): Action[] => {
+	for (let index = path.length; index >= 0; index--) {
+		const nodePath = path.slice(0, index)
+		const node = getNode(nodePath, root)
+
+		const actions = node?.[type]
+		if (!actions) continue
+		return actions
+	}
+	return []
 }
 
 export const toActionTuple = (

@@ -1,4 +1,10 @@
-import { AnyEventObject, AutoEvent, EventObject } from './event'
+import {
+	AnyEventObject,
+	AutoEvent,
+	EndEvent,
+	EventObject,
+	StartEvent
+} from './event'
 import { Schema, StateName } from './state'
 import { Context } from './context'
 
@@ -23,7 +29,11 @@ export type GuardMap<
 	TContext extends Context | undefined = undefined
 > = Record<
 	TGuard,
-	GuardFn<TSchema, TEventObject | EventObject<AutoEvent>, TContext>
+	GuardFn<
+		TSchema,
+		TEventObject | EventObject<AutoEvent | StartEvent | EndEvent>,
+		TContext
+	>
 >
 
 export type AnyGuardMap = GuardMap<any, any, any, any>

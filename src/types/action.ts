@@ -1,4 +1,10 @@
-import { AnyEventObject, AutoEvent, EventObject } from './event'
+import {
+	AnyEventObject,
+	AutoEvent,
+	EventObject,
+	StartEvent,
+	EndEvent
+} from './event'
 import { Schema, StateName } from './state'
 import { Context } from './context'
 
@@ -22,7 +28,11 @@ export type ActionMap<
 	TContext extends Context | undefined = undefined
 > = Record<
 	TAction,
-	ActionFn<TSchema, TEventObject | EventObject<AutoEvent>, TContext>
+	ActionFn<
+		TSchema,
+		TEventObject | EventObject<AutoEvent | StartEvent | EndEvent>,
+		TContext
+	>
 >
 
 export type AnyActionMap = ActionMap<any, any, any, any>

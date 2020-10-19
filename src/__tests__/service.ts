@@ -1,4 +1,4 @@
-import { init, sendEvent } from '../service'
+import { init, sendEvent, start } from '../service'
 import { EventError } from '../error'
 import {
 	Machine,
@@ -675,6 +675,73 @@ describe('history state', () => {
 			...config,
 			currentState: 's1',
 			history: []
+		})
+	})
+})
+
+describe('start', () => {
+	type SimpleEvents = 'next'
+	type Event = { type: SimpleEvents }
+
+	type Schema = {
+		created: null
+		createdAuto: null
+		done: null
+	}
+
+	type Actions = 'add'
+
+	const machine: Machine<Schema, Event['type'], Actions> = {
+		id: 'test',
+		initial: 'created',
+		start: ['add'],
+		states: {
+			created: { on: { next: 'done' } },
+			createdAuto: { on: { '': 'done' } },
+			done: {}
+		}
+	}
+	type Context = { x: number }
+
+	const actions: ActionMap<Schema, Event, Actions, Context> = {
+		add: ({ context }) => {
+			return Promise.resolve({
+				x: context.x + 1
+			})
+		}
+	}
+
+	const config: ServiceConfig<Schema, Event, Actions, undefined, Context> = {
+		machine,
+		actions
+	}
+
+	test('it performs start action', async () => {
+		const service = init({
+			...config,
+			context: { x: 0 }
+		})
+
+		expect(await start(service)).toEqual({
+			...config,
+			context: { x: 1 },
+			currentState: 'created',
+			history: []
+		})
+	})
+
+	test('it performs auto transition', async () => {
+		const service = init({
+			...config,
+			currentState: 'createdAuto',
+			context: { x: 0 }
+		})
+
+		expect(await start(service)).toEqual({
+			...config,
+			context: { x: 1 },
+			currentState: 'done',
+			history: ['createdAuto']
 		})
 	})
 })
