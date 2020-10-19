@@ -81,20 +81,20 @@ export const performActions = async (
 		eventObject: AnyEventObject
 	}
 ): Promise<Context> => {
-	const { actions, context, eventObject } = options
-	if (!actions) return context // FIXME handle this somewhere else
+	const { actions, eventObject } = options
+	if (!actions) return options.context // FIXME handle this somewhere else
 
-	let newContext = context
+	let context = options.context
 	for (const [action, state] of actionTuples) {
 		try {
-			newContext = await actions[action]({
-				context: newContext,
-				currentState: state,
+			context = await actions[action]({
+				context,
+				state,
 				event: eventObject
-			})
+			} as any)
 		} catch (err) {
 			throw new EventError(eventObject.type, action, err)
 		}
 	}
-	return newContext
+	return context
 }

@@ -179,10 +179,10 @@ describe('sendEvent', () => {
 		canDo2: () => Promise.resolve(true)
 	}
 	const actions: ActionMap<Schema, Event, Action, Context> = {
-		set: ({ context, currentState, event }) => {
-			if (currentState === 'done' && event.type === 'back') {
+		set: ({ context, state, event }) => {
+			if (state === 'done' && event.type === 'back') {
 				return Promise.resolve({ counter: 1 })
-			} else if (currentState === 'done') {
+			} else if (state === 'done') {
 				return Promise.resolve(context)
 			} else {
 				return Promise.resolve({
@@ -197,10 +197,10 @@ describe('sendEvent', () => {
 			),
 		delete: () => Promise.resolve({}),
 		fail: () => Promise.reject('fail'),
-		globSet: ({ context, currentState, event: { type } }) => {
+		globSet: ({ context, state, event: { type } }) => {
 			if (
-				(currentState === 'state8' && type === 'do') ||
-				(currentState === 'done' && type === 'back')
+				(state === 'state8' && type === 'do') ||
+				(state === 'done' && type === 'back')
 			) {
 				return Promise.resolve({ counter: 2 })
 			} else {

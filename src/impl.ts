@@ -47,7 +47,10 @@ const machine: Machine<Schema, Event['type'], Action, Guard> = {
 		state3: {},
 		state4: {
 			on: {
-				'': { target: 'state5', actions: ['set'] },
+				'': [
+					{ target: 'state5', actions: ['set'], cond: 'canDo' },
+					{ target: 'state6', actions: ['set'] }
+				],
 				do: { target: 'state4', actions: ['fail'] }
 			}
 		},
@@ -82,10 +85,10 @@ const guards: GuardMap<Schema, Event, Guard, Context> = {
 	canDo2: () => Promise.resolve(true)
 }
 const actions: ActionMap<Schema, Event, Action, Context> = {
-	set: ({ context, currentState, event }) => {
-		if (currentState === 'done' && event.type === 'back') {
+	set: ({ context, state, event }) => {
+		if (state === 'done' && event.type === 'back') {
 			return Promise.resolve({ counter: 1 })
-		} else if (currentState === 'done') {
+		} else if (state === 'done') {
 			return Promise.resolve(context)
 		} else {
 			return Promise.resolve({
@@ -97,10 +100,10 @@ const actions: ActionMap<Schema, Event, Action, Context> = {
 		Promise.resolve(counter ? { counter: counter + 1 } : { counter: 1 }),
 	delete: () => Promise.resolve({}),
 	fail: () => Promise.reject('fail'),
-	globSet: ({ context, currentState, event: { type } }) => {
+	globSet: ({ context, state, event: { type } }) => {
 		if (
-			(currentState === 'state8' && type === 'do') ||
-			(currentState === 'done' && type === 'back')
+			(state === 'state8' && type === 'do') ||
+			(state === 'done' && type === 'back')
 		) {
 			return Promise.resolve({ counter: 2 })
 		} else {
@@ -118,10 +121,10 @@ export async function main(): Promise<void> {
 	const service = init({
 		...config,
 		context: { counter: 1 },
-		currentState: 'state6'
+		currentState: 'state4'
 	})
 
-	const next = await sendEvent(service, 'do', true)
+	const next = await sendEvent(service, '', true)
 	console.log(next.currentState, next.context)
 }
 

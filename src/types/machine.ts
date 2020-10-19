@@ -14,12 +14,12 @@ export type LeafStateNode<
 > = {
 	on?: TransitionMap<TRootSchema, TEvent, TAction, TGuard>
 	type?: StateType
-} & (TAction extends NonNullable<infer A>
+} & ([TAction] extends [NonNullable<infer A>]
 	? {
-			entry?: Array<A>
-			exit?: Array<A>
-			start?: Array<A>
-			end?: Array<A>
+			entry?: A[]
+			exit?: A[]
+			start?: A[]
+			end?: A[]
 	  }
 	: unknown)
 

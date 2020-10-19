@@ -4,16 +4,19 @@ import {
 	AnyTransitionConfig,
 	Context
 } from './types'
+import { isArray } from './utils'
 
-const prefix = '== STATE ==\t'
+const prefix = ''
 
 const from = (
 	show: boolean,
 	data: { eventObject: AnyEventObject; currentState: any }
 ): void => {
 	if (!show) return
-	console.log(`${prefix}Event:\t\t\t${data.eventObject.type}`)
-	console.log(`${prefix}From:\t\t\t${data.currentState}`)
+	let event = data.eventObject.type
+	if (event === '') event = '$auto'
+
+	console.log(`${prefix}${data.currentState}\t⟼\t${event}`)
 }
 
 const possible = (
@@ -21,9 +24,13 @@ const possible = (
 	data: { transitions: AnyTransitionConfig[] }
 ): void => {
 	if (!show) return
-	console.log(
-		`${prefix}Possible transitions:\t${JSON.stringify(data.transitions)}`
-	)
+	for (const { target, cond } of data.transitions) {
+		const condString = cond
+			? `\t? ${isArray(cond) ? cond.join(', ') : cond}`
+			: ''
+
+		console.log(`${prefix}\t\t\t?⇥ \t${target}${condString}`)
+	}
 }
 
 const chosen = (
@@ -31,9 +38,8 @@ const chosen = (
 	data: { transition: AnyTransitionConfig }
 ): void => {
 	if (!show) return
-	console.log(
-		`${prefix}Chosen transitions:\t${JSON.stringify(data.transition)}`
-	)
+	const { target } = data.transition
+	console.log(`${prefix}\t\t\t\x1b[32m!\x1b[0m⇥ \t${target}`)
 }
 
 const actions = (
@@ -41,16 +47,14 @@ const actions = (
 	data: { actionTuples: ActionTuple[] }
 ): void => {
 	if (!show) return
-	const actionString = data.actionTuples.map(([actions, state]) => [
-		actions,
-		state
-	])
-	console.log(`${prefix}Actions:\t\t${JSON.stringify(actionString)}`)
+	for (const [action, state] of data.actionTuples) {
+		console.log(`${prefix}\t»  ${action} (${state})`)
+	}
 }
 
 const context = (show: boolean, data: { context: Context }): void => {
 	if (!show) return
-	console.log(`${prefix}Context:\t\t${JSON.stringify(data.context)}`)
+	console.log(`${prefix}\t= ${JSON.stringify(data.context)}`)
 }
 
 const to = (
@@ -58,8 +62,8 @@ const to = (
 	data: { history: string[]; currentState: any }
 ): void => {
 	if (!show) return
-	console.log(`${prefix}History:\t\t${JSON.stringify(data.history)}`)
-	console.log(`${prefix}To:\t\t\t${data.currentState}`)
+	console.log(`${prefix}\tHistory: ${data.history.join(', ')}`)
+	console.log(`${prefix}⇥  ${data.currentState}`)
 }
 
 const log = { from, possible, chosen, actions, context, to }

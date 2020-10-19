@@ -15,11 +15,12 @@ export type ActionFn<
 	TSchema extends Schema,
 	TEventObject extends AnyEventObject,
 	TContext extends Context | undefined
-> = (options: {
-	currentState: StateName<TSchema>
-	event: TEventObject
-	context: TContext
-}) => Promise<Partial<TContext>>
+> = (
+	options: {
+		state: StateName<TSchema>
+		event: TEventObject
+	} & (TContext extends undefined ? unknown : { context: TContext })
+) => Promise<Partial<TContext>>
 
 export type ActionMap<
 	TSchema extends Schema,

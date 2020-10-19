@@ -54,7 +54,7 @@ export const firstPassingTransition = async (
 		const conditions = (isArray(cond) ? cond : [cond]) as Guard[]
 		const results = await Promise.all(
 			conditions.map(c =>
-				guards[c]({ context, currentState, event: eventObject })
+				guards[c]({ context, currentState, event: eventObject } as any)
 			)
 		)
 

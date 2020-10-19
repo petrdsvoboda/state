@@ -14,11 +14,12 @@ export type GuardFn<
 	TSchema extends Schema,
 	TEventObject extends AnyEventObject,
 	TContext extends Context | undefined
-> = (options: {
-	context: TContext
-	currentState: StateName<TSchema>
-	event: TEventObject
-}) => Promise<boolean>
+> = (
+	options: {
+		state: StateName<TSchema>
+		event: TEventObject
+	} & (TContext extends undefined ? unknown : { context: TContext })
+) => Promise<boolean>
 
 export type AnyGuardFn = GuardFn<any, any, any>
 
