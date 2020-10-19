@@ -1,6 +1,11 @@
 export type { Context } from './context'
 export type { Schema, StateName, StatePath } from './state'
-export type { Event, AnyEventObject } from './event'
+export type {
+	Event,
+	AnyEventObject,
+	EventObject,
+	EventObjectWithPayload
+} from './event'
 export type { Machine, AnyStateNode, AnyMachine } from './machine'
 export type { Service, ServiceConfig, AnyService } from './service'
 export type {
