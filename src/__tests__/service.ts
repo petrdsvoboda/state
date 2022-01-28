@@ -100,7 +100,7 @@ describe('sendEvent', () => {
 	type SimpleEvents = 'do' | 'back' | 'complete' | 'restart'
 	type CustomEvents = { type: 'addPayload'; payload: { counter: number } }
 	type Event = { type: SimpleEvents } | CustomEvents
-	type Guard = 'canDo' | 'canDo2'
+	type Guard = 'canDo' | 'canDo2' | 'hasState'
 	type Action = 'set' | 'inc' | 'delete' | 'fail' | 'globSet'
 
 	type Schema = {
@@ -127,7 +127,7 @@ describe('sendEvent', () => {
 						{ target: 'state1', cond: 'canDo' },
 						{ target: 'state2' }
 					],
-					complete: { target: 'done' }
+					complete: { target: 'done', cond: 'hasState' }
 				}
 			},
 			state1: {
@@ -176,7 +176,8 @@ describe('sendEvent', () => {
 	type Context = { counter?: number }
 	const guards: GuardMap<Schema, Event, Guard, Context> = {
 		canDo: ({ context: { counter } }) => Promise.resolve(counter === 1),
-		canDo2: () => Promise.resolve(true)
+		canDo2: () => Promise.resolve(true),
+		hasState: ({ state }) => Promise.resolve(state === 'new')
 	}
 	const actions: ActionMap<Schema, Event, Action, Context> = {
 		set: ({ context, state, event }) => {
@@ -217,8 +218,7 @@ describe('sendEvent', () => {
 	test('it completes simple transition', async () => {
 		const service = init({
 			...config,
-			currentState: 'done',
-			history: ['new']
+			currentState: 'new'
 		})
 		expect(await sendEvent(service, 'complete')).toEqual({
 			...config,

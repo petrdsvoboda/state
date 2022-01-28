@@ -41,11 +41,11 @@ export const firstPassingTransition = async (
 	guards: AnyGuardMap,
 	options: {
 		context: Context
-		currentState: any
+		state: any
 		eventObject: AnyEventObject
 	}
 ): Promise<AnyTransitionConfig | undefined> => {
-	const { context, currentState, eventObject } = options
+	const { context, state, eventObject } = options
 
 	for (const transition of transitions) {
 		const { cond } = transition
@@ -54,7 +54,7 @@ export const firstPassingTransition = async (
 		const conditions = (isArray(cond) ? cond : [cond]) as Guard[]
 		const results = await Promise.all(
 			conditions.map(c =>
-				guards[c]({ context, currentState, event: eventObject } as any)
+				guards[c]({ context, state, event: eventObject } as any)
 			)
 		)
 

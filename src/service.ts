@@ -175,7 +175,7 @@ export const sendEvent = async <T extends AnyService>(
 	// Choose the first transition that passes guards
 	const transition = await firstPassingTransition(transitions, guards, {
 		context,
-		currentState,
+		state: currentState,
 		eventObject
 	})
 	if (transition === undefined) return service
